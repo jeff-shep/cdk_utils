@@ -1,0 +1,2 @@
+include versioneer.py
+include src/cdkutils/_version.py

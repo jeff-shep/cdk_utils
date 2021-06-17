@@ -1,0 +1,3 @@
+# Be aware, before renaming or moving this file, that it is referenced in .github/workflows/coding-standards.yml
+bginvoketasks~=0.0.3
+-r requirements-tox.txt

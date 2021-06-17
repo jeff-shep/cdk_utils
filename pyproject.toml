@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools >= 40.9.0", "wheel", "versioneer-518"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+# Configuration options docs: https://docs.pytest.org/en/stable/reference.html#ini-options-ref
+# Interested in how pytest locates its config and decides where to look for tests?
+# Read this: https://docs.pytest.org/en/stable/customize.html#initialization-determining-rootdir-and-configfile
+testpaths = [
+    "test",
+]
+addopts =[
+    "--color=auto",
+    "--code-highlight=yes",
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--junit-xml=test-report.xml",
+]
+junit_logging = "all"
+minversion = "6.2.2"
+#required_plugins = "pytest-cov~=2.11.1"
+
+[tool.coverage.run]
+# coverage.py configuration reference: https://coverage.readthedocs.io/en/latest/config.html
+source_pkgs = ["cdkutils"]
+relative_files = true
+branch = true
+omit = [
+    "*/_version.py"
+]
+
+[tool.coverage.report]
+fail_under = 90

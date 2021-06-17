@@ -1,0 +1,48 @@
+name: Python package
+
+on:
+  release:
+    types:
+      - released
+
+jobs:
+  package-bg-aws-utils:
+    runs-on: ubuntu-latest
+    env:
+      PIP_INDEX_URL: https://${{ secrets.PIP_INDEX_URL_USERNAME_AND_ACCESS_TOKEN }}@metoffice.jfrog.io/metoffice/api/pypi/pypi/simple
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+          ref: main
+
+      - name: Invoke setup-artifactory
+        run: |
+          cp .github/resources/.pypirc ~/
+          IFS=\: read -a fields <<<"${{ secrets.PIP_INDEX_URL_USERNAME_AND_ACCESS_TOKEN }}"
+          echo -e "username = ${fields[0]}" >> ~/.pypirc
+          echo -e "password = ${fields[1]}" >> ~/.pypirc
+
+      - name: Cache pip downloads
+        uses: actions/cache@v2
+        env:
+          cache-name: pip-wheel-cache-for-packaging
+        with:
+          path: ~/.cache/pip # for Unix/Linux
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/requirements/*') }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ env.cache-name }}-
+            ${{ runner.os }}-build-
+            ${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+        working-directory: requirements/ # In case of relative references
+
+      - name: Invoke build
+        run: invoke build
+
+      - name: Invoke publish
+        run: invoke publish
