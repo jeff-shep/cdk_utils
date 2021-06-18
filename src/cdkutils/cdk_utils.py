@@ -68,6 +68,12 @@ class PipelineConfig:
         secret_string: str = client.get_secret_value(SecretId=path)["SecretString"]
         return secret_string
 
+    def get_secret_arn(self, path: str) -> str:
+        session = boto3.Session(region_name=self.region)
+        client = session.client("secretsmanager")
+        secret_arn: str = client.get_secret_value(SecretId=path)["ARN"]
+        return secret_arn
+
     @staticmethod
     def get_artifact_for_stack_output(pipeline: pipelines.CdkPipeline, output: core.CfnOutput) -> object:
         stack_output = pipeline.stack_output(output)
