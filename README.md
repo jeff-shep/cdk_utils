@@ -1,2 +1,2 @@
-# tt_cdk_utils
+# cdk_utils
 Transport tribe library for common CDK components 

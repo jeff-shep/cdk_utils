@@ -68,6 +68,14 @@ class TestPipelineConfig(unittest.TestCase):
         result = self.instance.get_secret(path="valid/ssm/path")
         assert result == "foosecret"
 
+    @mock_secretsmanager
+    def test_given_a_valid_path_when_get_secret_is_called_then_return_secret_arn(self):
+        session = boto3.Session(region_name="eu-west-2")
+        secrets_manager = session.client("secretsmanager")
+        response = secrets_manager.create_secret(Name="valid/ssm/path", SecretString="foosecret")
+        result = self.instance.get_secret_arn(path="valid/ssm/path")
+        assert result == response["ARN"]
+
     def test_give_a_valid_stack_output_when_get_artifact_for_stack_output_is_called_then_return_stack_output(self):
         mock_stack_output = Mock()
         cfn_output = Mock()
