@@ -9,7 +9,7 @@ jobs:
   package-bg-aws-utils:
     runs-on: ubuntu-latest
     env:
-      PIP_INDEX_URL: https://${{ secrets.PIP_INDEX_URL_USERNAME_AND_ACCESS_TOKEN }}@metoffice.jfrog.io/metoffice/api/pypi/pypi/simple
+      PIP_INDEX_URL: https://${{ secrets.PIP_INDEX_USERNAME }}:${{ secrets.PIP_INDEX_PASSWORD }}@metoffice.jfrog.io/metoffice/api/pypi/pypi/simple
     steps:
       - uses: actions/checkout@v2
       - name: Set up Python 3.8
@@ -17,13 +17,6 @@ jobs:
         with:
           python-version: '3.8'
           ref: main
-
-      - name: Invoke setup-artifactory
-        run: |
-          cp .github/resources/.pypirc ~/
-          IFS=\: read -a fields <<<"${{ secrets.PIP_INDEX_URL_USERNAME_AND_ACCESS_TOKEN }}"
-          echo -e "username = ${fields[0]}" >> ~/.pypirc
-          echo -e "password = ${fields[1]}" >> ~/.pypirc
 
       - name: Cache pip downloads
         uses: actions/cache@v2
@@ -46,3 +39,8 @@ jobs:
 
       - name: Invoke publish
         run: invoke publish
+        env:
+          TWINE_USERNAME: ${{ secrets.PIP_INDEX_USERNAME }}
+          TWINE_PASSWORD: ${{ secrets.PIP_INDEX_PASSWORD }}
+          TWINE_REPOSITORY_URL: https://metoffice.jfrog.io/metoffice/api/pypi/pypi/simple
+          TWINE_NON_INTERACTIVE: "True" # Value not really needed, just needs to be set
