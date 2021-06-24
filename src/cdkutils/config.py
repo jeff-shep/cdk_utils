@@ -465,6 +465,7 @@ class SharedPipelineConfig(BaseConfig):
         ssm_config: SsmConfig,
         *,
         service: ServiceDetails,
+        mgmt_account_id: str,
         dev_account_id: str,
         ci_account_id: str,
         prod_account_id: str,
@@ -474,6 +475,7 @@ class SharedPipelineConfig(BaseConfig):
         **kwargs: Any,
     ) -> None:
         super().__init__(ssm_config, service=service, **kwargs)
+        self.mgmt_account_id = mgmt_account_id
         self.dev_account_id = dev_account_id
         self.ci_account_id = ci_account_id
         self.prod_account_id = prod_account_id
@@ -485,6 +487,7 @@ class SharedPipelineConfig(BaseConfig):
         return (
             isinstance(other, SharedPipelineConfig)
             and super().__eq__(other)
+            and self.mgmt_account_id == other.mgmt_account_id
             and self.dev_account_id == other.dev_account_id
             and self.ci_account_id == other.ci_account_id
             and self.prod_account_id == other.prod_account_id
@@ -496,6 +499,7 @@ class SharedPipelineConfig(BaseConfig):
     @classmethod
     def _get_persisted_attributes(cls) -> List[PersistedAttribute]:
         return super()._get_persisted_attributes() + [
+            PersistedAttribute("mgmt_account_id", "MgmtAccountId", "pipeline/account_id/mgmt"),
             PersistedAttribute("dev_account_id", "DevAccountId", "pipeline/account_id/dev"),
             PersistedAttribute("ci_account_id", "CiAccountId", "pipeline/account_id/ci"),
             PersistedAttribute("prod_account_id", "ProdAccountId", "pipeline/account_id/prod"),
@@ -522,6 +526,7 @@ class PipelineConfig(SharedPipelineConfig):
         deploy_to_ci: bool = False,
         deploy_to_prod: bool = False,
         service: ServiceDetails,
+        mgmt_account_id: str,
         dev_account_id: str,
         ci_account_id: str,
         prod_account_id: str,
@@ -530,9 +535,13 @@ class PipelineConfig(SharedPipelineConfig):
         sonarcloud_token: str,
         **kwargs: Any,
     ):
+        # pylint:disable=too-many-locals
+        # To remove this, perhaps extract the account IDs into an Accounts object?
+        # Or group some of the other build options together in some way?
         super().__init__(
             ssm_config,
             service=service,
+            mgmt_account_id=mgmt_account_id,
             dev_account_id=dev_account_id,
             ci_account_id=ci_account_id,
             prod_account_id=prod_account_id,
@@ -543,7 +552,7 @@ class PipelineConfig(SharedPipelineConfig):
         )
 
         self.unique_id = unique_id
-        self.branch_to_build = branch_to_build
+        self.branch_to_build = branch_to_build if branch_to_build else Repository(".").head.shorthand
         self.deploy_to_ci = deploy_to_ci
         self.deploy_to_prod = deploy_to_prod
         self.build_lambdas = build_lambdas
@@ -588,7 +597,7 @@ class PipelineConfig(SharedPipelineConfig):
 
         kwargs = {
             "unique_id": unique_id,
-            "branch_to_build": cdk_scope.node.try_get_context("BranchToBuild") or Repository(".").head.shorthand,
+            "branch_to_build": cdk_scope.node.try_get_context("BranchToBuild"),
             "deploy_to_ci": bool(cdk_scope.node.try_get_context("DeployToCi")),
             "deploy_to_prod": bool(cdk_scope.node.try_get_context("DeployToProd")),
             "build_lambdas": not cdk_scope.node.try_get_context("Local"),

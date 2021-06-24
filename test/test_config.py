@@ -36,6 +36,7 @@ def get_mock_cdk_scope(
     pip_index_password: Optional[str] = None,
     pip_index_url: Optional[str] = None,
     # SharedPipelineConfig params
+    mgmt_account_id: Optional[str] = None,
     dev_account_id: Optional[str] = None,
     ci_account_id: Optional[str] = None,
     prod_account_id: Optional[str] = None,
@@ -49,39 +50,41 @@ def get_mock_cdk_scope(
 ) -> Mock:
     """Helper method to construct a mock CDK construct with the correct CDK context variables"""
 
-    mock_scope = Mock()
+    context_vars_dict = {
+        # GitHubConfig context vars
+        "GitHubRepo": github_repo,
+        "GitHubOrg": github_org,
+        "GitHubToken": github_token,
+        # ServiceDetails context vars
+        "ServiceName": service_name,
+        "ServiceOwner": service_owner,
+        "ServiceCostCode": service_cost_code,
+        # SsmConfig context vars
+        "SsmNamespace": ssm_namespace,
+        "SsmConfigId": ssm_config_id,
+        "SsmConfigOrg": ssm_config_org,
+        # PipIndexConfig params
+        "PipIndexUsername": pip_index_username,
+        "PipIndexPassword": pip_index_password,
+        "PipIndexUrl": pip_index_url,
+        # SharedPipelineConfig params
+        "MgmtAccountId": mgmt_account_id,
+        "DevAccountId": dev_account_id,
+        "CiAccountId": ci_account_id,
+        "ProdAccountId": prod_account_id,
+        "SonarCloudToken": sonarcloud_token,
+        # PipelineConfig params
+        "UniqueId": unique_id,
+        "BranchToBuild": branch_to_build,
+        "Local": "True" if not build_lambdas else None,
+        "DeployToCi": "True" if deploy_to_ci else None,
+        "DeployToProd": "True" if deploy_to_prod else None,
+    }
 
     def _mock_try_get_context(key):
-        return {
-            # GitHubConfig context vars
-            "GitHubRepo": github_repo,
-            "GitHubOrg": github_org,
-            "GitHubToken": github_token,
-            # ServiceDetails context vars
-            "ServiceName": service_name,
-            "ServiceOwner": service_owner,
-            "ServiceCostCode": service_cost_code,
-            # SsmConfig context vars
-            "SsmNamespace": ssm_namespace,
-            "SsmConfigId": ssm_config_id,
-            "SsmConfigOrg": ssm_config_org,
-            # PipIndexConfig params
-            "PipIndexUsername": pip_index_username,
-            "PipIndexPassword": pip_index_password,
-            "PipIndexUrl": pip_index_url,
-            # SharedPipelineConfig params
-            "DevAccountId": dev_account_id,
-            "CiAccountId": ci_account_id,
-            "ProdAccountId": prod_account_id,
-            "SonarCloudToken": sonarcloud_token,
-            # PipelineConfig params
-            "UniqueId": unique_id,
-            "BranchToBuild": branch_to_build,
-            "Local": "True" if not build_lambdas else None,
-            "DeployToCi": "True" if deploy_to_ci else None,
-            "DeployToProd": "True" if deploy_to_prod else None,
-        }.get(key)
+        return context_vars_dict.get(key)
 
+    mock_scope = Mock()
     mock_scope.node.try_get_context.side_effect = _mock_try_get_context
     return mock_scope
 
@@ -505,6 +508,7 @@ class PipelineConfigTest(TestCase):
         expected_deploy_to_prod = True
         expected_deploy_to_ci = True
         expected_service_details = ServiceDetails("PipelineConfigTest", "ABCDE")
+        expected_mgmt_account_id = "1357908642"
         expected_dev_account_id = "12334509876"
         expected_ci_account_id = "6789012345"
         expected_prod_account_id = "0987654321"
@@ -519,6 +523,7 @@ class PipelineConfigTest(TestCase):
             deploy_to_ci=expected_deploy_to_ci,
             deploy_to_prod=expected_deploy_to_prod,
             service=expected_service_details,
+            mgmt_account_id=expected_mgmt_account_id,
             dev_account_id=expected_dev_account_id,
             ci_account_id=expected_ci_account_id,
             prod_account_id=expected_prod_account_id,
@@ -536,6 +541,7 @@ class PipelineConfigTest(TestCase):
             service_name=expected_service_details.name,
             service_owner=expected_service_details.owner,
             service_cost_code=expected_service_details.cost_code,
+            mgmt_account_id=expected_mgmt_account_id,
             dev_account_id=expected_dev_account_id,
             ci_account_id=expected_ci_account_id,
             prod_account_id=expected_prod_account_id,
