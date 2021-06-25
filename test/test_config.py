@@ -179,7 +179,7 @@ class ServiceDetailsTest(TestCase):
         """
         GIVEN no arguments supplied WHEN a new instance is created THEN attributes have default values
         """
-        actual = ServiceDetails()
+        actual = ServiceDetails(self.test_ssm_config)
 
         self.assertEqual("", actual.name)
         self.assertEqual("transporttribe@metoffice.gov.uk", actual.owner)
@@ -192,7 +192,7 @@ class ServiceDetailsTest(TestCase):
         expected_name = "Test Service"
         expected_owner = "Transport Tribe"
         expected_cost_code = "ABCDE"
-        actual = ServiceDetails(expected_name, expected_cost_code, expected_owner)
+        actual = ServiceDetails(self.test_ssm_config, expected_name, expected_cost_code, expected_owner)
 
         self.assertEqual(expected_name, actual.name)
         self.assertEqual(expected_owner, actual.owner)
@@ -291,21 +291,16 @@ class ServiceDetailsTest(TestCase):
         expected_owner_ssm_path = self.test_ssm_config.get_full_path("service/owner")
         expected_cost_code_ssm_path = self.test_ssm_config.get_full_path("service/cost_code")
 
-        actual = ServiceDetails()
+        actual = ServiceDetails(self.test_ssm_config)
 
         self.assertEqual(expected_name_ssm_path, actual.get_ssm_param_name("name", self.test_ssm_config))
-        self.assertEqual(expected_name_ssm_path, ServiceDetails.get_ssm_param_name("name", self.test_ssm_config))
         self.assertEqual(expected_owner_ssm_path, actual.get_ssm_param_name("owner", self.test_ssm_config))
-        self.assertEqual(expected_owner_ssm_path, ServiceDetails.get_ssm_param_name("owner", self.test_ssm_config))
         self.assertEqual(expected_cost_code_ssm_path, actual.get_ssm_param_name("cost_code", self.test_ssm_config))
-        self.assertEqual(
-            expected_cost_code_ssm_path, ServiceDetails.get_ssm_param_name("cost_code", self.test_ssm_config)
-        )
 
     def test_get_ssm_param_name_doesnt_exist(self):
         """GIVEN an invalid attribute WHEN get_ssm_param_name is called THEN a KeyError is raised"""
         with self.assertRaises(KeyError):
-            ServiceDetails.get_ssm_param_name("does not exist", self.test_ssm_config)
+            ServiceDetails(self.test_ssm_config).get_ssm_param_name("does not exist")
 
     def test_apply_tags_to(self):
         """GIVEN a CDK construct as a scope WHEN apply_tags_to is called THEN correct tags are applied to that scope"""
@@ -314,7 +309,7 @@ class ServiceDetailsTest(TestCase):
         expected_cost_code = "ABCDE"
         cdk_scope = cdk.App()
 
-        service_details = ServiceDetails(expected_name, expected_cost_code, expected_owner)
+        service_details = ServiceDetails(self.test_ssm_config, expected_name, expected_cost_code, expected_owner)
 
         with mock.patch("cdkutils.config.cdk.Tags") as mock_tags:
             service_details.apply_tags_to(cdk_scope)
@@ -334,7 +329,7 @@ class ServiceDetailsTest(TestCase):
         GIVEN an attribute that exists but is not a Secret WHEN get_secret_name is called THEN a KeyError is raised
         """
         with self.assertRaises(KeyError):
-            ServiceDetails.get_secret_name("name", self.test_ssm_config)
+            ServiceDetails(self.test_ssm_config).get_secret_name("name")
 
     def test_to_cdk(self):
         expected_name = "to_cdk Test"
@@ -347,7 +342,7 @@ class ServiceDetailsTest(TestCase):
         cdk_app = cdk.App()
         cdk_scope = cdk.Stack(cdk_app)
 
-        service_details = ServiceDetails(expected_name, expected_cost_code, expected_owner)
+        service_details = ServiceDetails(self.test_ssm_config, expected_name, expected_cost_code, expected_owner)
         service_details.to_cdk(cdk_scope, self.test_ssm_config)
 
         self.assertEqual(3, len(cdk_scope.node.children))
@@ -374,7 +369,7 @@ class GitHubConfigTest(TestCase):
         """
         GIVEN no arguments supplied WHEN a new instance is created THEN attributes have default values
         """
-        actual = GitHubConfig()
+        actual = GitHubConfig(self.test_ssm_config)
 
         self.assertEqual("MetOffice", actual.org)
         self.assertEqual("", actual.repo)
@@ -387,7 +382,7 @@ class GitHubConfigTest(TestCase):
         expected_repo = "cdk_utils"
         expected_org = "MyOrg"
         expected_oauth_token = "ABCDE"
-        actual = GitHubConfig(expected_repo, expected_oauth_token, expected_org)
+        actual = GitHubConfig(self.test_ssm_config, expected_repo, expected_oauth_token, expected_org)
 
         self.assertEqual(expected_repo, actual.repo)
         self.assertEqual(expected_oauth_token, actual.oauth_token)
@@ -398,7 +393,7 @@ class GitHubConfigTest(TestCase):
         expected_repo = "cdk_utils"
         expected_org = "MyOrg"
         expected_oauth_token = "ABCDE"
-        gh_config = GitHubConfig(expected_repo, expected_oauth_token, expected_org)
+        gh_config = GitHubConfig(self.test_ssm_config, expected_repo, expected_oauth_token, expected_org)
 
         self.assertEqual(f"https://github.com/{expected_org}/{expected_repo}", str(gh_config))
 
@@ -410,19 +405,22 @@ class GitHubConfigTest(TestCase):
         expected_repo = "cdk_utils"
         expected_org = "MyOrg"
         expected_oauth_token = "ABCDE"
-        gh_config = GitHubConfig(expected_repo, expected_oauth_token, expected_org)
+        gh_config = GitHubConfig(self.test_ssm_config, expected_repo, expected_oauth_token, expected_org)
 
-        self.assertEqual(f"GitHubConfig({expected_repo!r}, ****, {expected_org!r})", repr(gh_config))
+        self.assertEqual(
+            f"GitHubConfig({self.test_ssm_config!r}, {expected_repo!r}, ****, {expected_org!r})", repr(gh_config)
+        )
 
     def test__repr__token_unset(self):
         """WHEN an instance without an OAUTH token is passed to repr() THEN the expected string is generated"""
         expected_repo = "cdk_utils"
         expected_org = "MyOrg"
         expected_oauth_token = ""
-        gh_config = GitHubConfig(expected_repo, expected_oauth_token, expected_org)
+        gh_config = GitHubConfig(self.test_ssm_config, expected_repo, expected_oauth_token, expected_org)
 
         self.assertEqual(
-            f"GitHubConfig({expected_repo!r}, {expected_oauth_token!r}, {expected_org!r})", repr(gh_config)
+            f"GitHubConfig({self.test_ssm_config!r}, {expected_repo!r}, {expected_oauth_token!r}, {expected_org!r})",
+            repr(gh_config),
         )
 
     def test_load_uses_cdk_context(self):
@@ -481,7 +479,7 @@ class GitHubConfigTest(TestCase):
     def test_get_ssm_param_name_doesnt_exist(self):
         """GIVEN an invalid attribute WHEN get_ssm_param_name is called THEN a KeyError is raised"""
         with self.assertRaises(KeyError):
-            GitHubConfig.get_ssm_param_name("does not exist", self.test_ssm_config)
+            GitHubConfig(self.test_ssm_config).get_ssm_param_name("does not exist")
 
     def test_get_ssm_param_name_not_an_ssm(self):
         """
@@ -490,14 +488,14 @@ class GitHubConfigTest(TestCase):
         THEN a KeyError is raised
         """
         with self.assertRaises(KeyError):
-            GitHubConfig.get_ssm_param_name("oauth_token", self.test_ssm_config)
+            GitHubConfig(self.test_ssm_config).get_ssm_param_name("oauth_token")
 
     def test_get_secret_name_not_a_secret(self):
         """
         GIVEN an attribute that exists but is not a Secret WHEN get_secret_name is called THEN a KeyError is raised
         """
         with self.assertRaises(KeyError):
-            GitHubConfig.get_secret_name("org", self.test_ssm_config)
+            GitHubConfig(self.test_ssm_config).get_secret_name("org")
 
 
 class PipIndexConfigTest(TestCase):
@@ -530,13 +528,13 @@ class PipelineConfigTest(TestCase):
         expected_build_lambdas = False
         expected_deploy_to_prod = True
         expected_deploy_to_ci = True
-        expected_service_details = ServiceDetails("PipelineConfigTest", "ABCDE")
+        expected_service_details = ServiceDetails(self.test_ssm_config, "PipelineConfigTest", "ABCDE")
         expected_mgmt_account_id = "1357908642"
         expected_dev_account_id = "12334509876"
         expected_ci_account_id = "6789012345"
         expected_prod_account_id = "0987654321"
-        expected_github_config = GitHubConfig("cdk_utils", "a1b2c3d4e5f6g7h8i9j0")
-        expected_pip_config = PipIndexConfig("foo@metoffice.gov.uk", "password")
+        expected_github_config = GitHubConfig(self.test_ssm_config, "cdk_utils", "a1b2c3d4e5f6g7h8i9j0")
+        expected_pip_config = PipIndexConfig(self.test_ssm_config, "foo@metoffice.gov.uk", "password")
         expected_sonarcloud_token = "fhaoi4oyt5988439798vbr87439bvdi89gf7g67d6fd56f6g76h6"
         expected_pipeline_config = PipelineConfig(
             self.test_ssm_config,

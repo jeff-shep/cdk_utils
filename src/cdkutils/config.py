@@ -54,6 +54,12 @@ class SsmConfig:
             and self.namespace == other.namespace
         )
 
+    def __repr__(self) -> str:
+        return f"SsmConfig({self.namespace!r}, {self.config_id!r}, {self.org_name!r})"
+
+    def __str__(self) -> str:
+        return self.path_prefix
+
     @property
     def path_prefix(self) -> str:
         """Return the path prefix common to all config entries relating to this config"""
@@ -100,8 +106,11 @@ class PersistedConfig(ABC):
     def _get_subconfigs(cls) -> Dict[str, Type["PersistedConfig"]]:
         return {}
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        pass
+    def __init__(self, ssm_config: SsmConfig, *_args: Any, **_kwargs: Any) -> None:
+        self.ssm = ssm_config
+
+    def __eq__(self, other: Any) -> bool:
+        return isinstance(other, PersistedConfig) and self.ssm == other.ssm
 
     @classmethod
     @final
@@ -195,7 +204,7 @@ class PersistedConfig(ABC):
         cdk_scope: Optional[cdk.Construct] = None,
     ) -> "PersistedConfig":
         kwargs = cls._get_init_args(ssm_config, boto_session, cdk_scope)
-        return cls(**kwargs)
+        return cls(ssm_config, **kwargs)
 
     @classmethod
     def get_persisted_attribute(cls, attribute_name: str) -> PersistedAttribute:
@@ -204,27 +213,29 @@ class PersistedConfig(ABC):
         except StopIteration as exc:
             raise KeyError(f"Didn't find a persisted attribute named {attribute_name!r}") from exc
 
-    @classmethod
-    def get_ssm_param_name(cls, attribute_name: str, ssm_config: SsmConfig) -> str:
+    def get_ssm_param_name(self, attribute_name: str, ssm_config_override: Optional[SsmConfig] = None) -> str:
 
-        param = cls.get_persisted_attribute(attribute_name)
+        ssm_config = ssm_config_override if ssm_config_override else self.ssm
+        param = self.get_persisted_attribute(attribute_name)
         if param.use_secrets_manager:
             raise KeyError(f"Attribute {attribute_name} is not stored in SSM")
         return ssm_config.get_full_path(param.aws_partial_path)
 
-    @classmethod
-    def get_secret_name(cls, attribute_name: str, ssm_config: SsmConfig) -> str:
+    def get_secret_name(self, attribute_name: str, ssm_config_override: Optional[SsmConfig] = None) -> str:
 
-        param = cls.get_persisted_attribute(attribute_name)
+        ssm_config = ssm_config_override if ssm_config_override else self.ssm
+        param = self.get_persisted_attribute(attribute_name)
         if not param.use_secrets_manager:
             raise KeyError(f"Attribute {attribute_name} is not stored in Secrets Manager")
         return ssm_config.get_full_path(param.aws_partial_path)
 
-    @classmethod
-    def get_secret_value(cls, attribute_name: str, ssm_config: SsmConfig) -> cdk.SecretValue:
-        return cdk.SecretValue.secrets_manager(cls.get_secret_name(attribute_name, ssm_config))
+    def get_secret_value(self, attribute_name: str, ssm_config_override: Optional[SsmConfig] = None) -> cdk.SecretValue:
+        ssm_config = ssm_config_override if ssm_config_override else self.ssm
+        return cdk.SecretValue.secrets_manager(self.get_secret_name(attribute_name, ssm_config))
 
-    def to_cdk(self, scope: cdk.Stack, ssm_config: SsmConfig) -> None:
+    def to_cdk(self, scope: cdk.Stack, ssm_config_override: Optional[SsmConfig] = None) -> None:
+
+        ssm_config = ssm_config_override if ssm_config_override else self.ssm
 
         for mapping in self._get_persisted_attributes():
             if mapping.use_secrets_manager:
@@ -276,8 +287,10 @@ class ServiceDetails(PersistedConfig):
     https://metoffice.sharepoint.com/sites/CloudTeamCommsSite/SitePages/AWS-Tagging.aspx
     """
 
-    def __init__(self, name: str = "", cost_code: str = "", owner: str = "transporttribe@metoffice.gov.uk") -> None:
-        super().__init__()
+    def __init__(
+        self, ssm_config: SsmConfig, name: str = "", cost_code: str = "", owner: str = "transporttribe@metoffice.gov.uk"
+    ) -> None:
+        super().__init__(ssm_config)
         self.name = name
         self.cost_code = cost_code
         self.owner = owner
@@ -299,6 +312,7 @@ class ServiceDetails(PersistedConfig):
     def __eq__(self, other: Any) -> bool:
         return (
             isinstance(other, ServiceDetails)
+            and super().__eq__(other)
             and self.owner == other.owner
             and self.name == other.name
             and self.cost_code == other.cost_code
@@ -321,7 +335,7 @@ class GitHubConfig(PersistedConfig):
 
     _SSM_BASE_PATH = "pipeline/github/"
 
-    def __init__(self, repo: str = "", oauth_token: str = "", org: str = "MetOffice") -> None:
+    def __init__(self, ssm_config: SsmConfig, repo: str = "", oauth_token: str = "", org: str = "MetOffice") -> None:
         """
 
         :param repo: The name of the projects git repository
@@ -329,7 +343,7 @@ class GitHubConfig(PersistedConfig):
                             code and configuring webhooks
         :param org: The name of the organisation that owns the project repository
         """
-        super().__init__()
+        super().__init__(ssm_config)
         self.repo = repo
         self.oauth_token = oauth_token
         self.org = org
@@ -339,11 +353,12 @@ class GitHubConfig(PersistedConfig):
 
     def __repr__(self) -> str:
         token_str = "****" if self.oauth_token and isinstance(self.oauth_token, str) else repr(self.oauth_token)
-        return f"GitHubConfig({self.repo!r}, {token_str}, {self.org!r})"
+        return f"GitHubConfig({self.ssm!r}, {self.repo!r}, {token_str}, {self.org!r})"
 
     def __eq__(self, other: Any) -> bool:
         return (
             isinstance(other, GitHubConfig)
+            and super().__eq__(other)
             and self.repo == other.repo
             and self.org == other.org
             and self.oauth_token == other.oauth_token
@@ -372,11 +387,12 @@ class PipIndexConfig(PersistedConfig):
 
     def __init__(
         self,
+        ssm_config: SsmConfig,
         username: str = "",
         password: str = "",
         url: str = "https://metoffice.jfrog.io/metoffice/api/pypi/pypi/simple",
     ) -> None:
-        super().__init__()
+        super().__init__(ssm_config)
         self.username = username
         self.password = password
         self.url = url
@@ -386,11 +402,12 @@ class PipIndexConfig(PersistedConfig):
         return creds.replace(self.password, "****") if creds and self.password else str(creds)
 
     def __repr__(self) -> str:
-        return f"PipIndexConfig({self.username!r}, {self.password!r}, {self.url!r})"
+        return f"PipIndexConfig({self.ssm!r}, {self.username!r}, {self.password!r}, {self.url!r})"
 
     def __eq__(self, other: Any) -> bool:
         return (
             isinstance(other, PipIndexConfig)
+            and super().__eq__(other)
             and self.username == other.username
             and self.password == other.password
             and self.url == other.url
@@ -446,8 +463,7 @@ class BaseConfig(PersistedConfig, ABC):
         service: ServiceDetails,
         **kwargs: Any,
     ) -> None:
-        super().__init__(**kwargs)
-        self.ssm = ssm_config
+        super().__init__(ssm_config, **kwargs)
         self.service = service
 
     @classmethod
@@ -460,20 +476,13 @@ class BaseConfig(PersistedConfig, ABC):
         subconfigs.update(service=ServiceDetails)
         return subconfigs
 
-    @classmethod
-    def load(
-        cls,
-        ssm_config: SsmConfig,
-        boto_session: Optional[boto3.Session] = None,
-        cdk_scope: Optional[cdk.Construct] = None,
-    ) -> PersistedConfig:
-        kwargs = cls._get_init_args(ssm_config, boto_session, cdk_scope)
-        # pylint & mypy can't infer the contents of kwargs from static analysis
-        # pylint:disable=missing-kwoa
-        return cls(ssm_config, **kwargs)  # type: ignore
-
     def __eq__(self, other: Any) -> bool:
-        return isinstance(other, BaseConfig) and self.ssm == other.ssm and self.service == other.service
+        return (
+            isinstance(other, BaseConfig)
+            and super().__eq__(other)
+            and self.ssm == other.ssm
+            and self.service == other.service
+        )
 
 
 class SharedPipelineConfig(BaseConfig):
