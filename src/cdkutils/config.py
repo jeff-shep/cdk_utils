@@ -1,4 +1,5 @@
 """Classes for persisting and accessing pipeline config"""
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, Union, final
@@ -14,6 +15,9 @@ if TYPE_CHECKING:
 else:
     SSMClient = object
     SecretsManagerClient = object
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class SsmConfig:
@@ -70,6 +74,14 @@ class PersistedAttribute:
     cdk_context_param: str
     aws_partial_path: str
     use_secrets_manager: bool = False  # If false, the attribute is stored in a SSM Parameter
+
+
+class ConfigException(Exception):
+    pass
+
+
+class AttributeNotFoundException(ConfigException):
+    pass
 
 
 class PersistedConfig(ABC):
@@ -132,10 +144,19 @@ class PersistedConfig(ABC):
         for persisted_attr in persisted_attrs:
             if persisted_attr.aws_partial_path:
                 full_path = ssm_config.get_full_path(persisted_attr.aws_partial_path)
-                if persisted_attr.use_secrets_manager:
-                    val = secret_mgr_client.get_secret_value(SecretId=full_path)["SecretString"]
-                else:
-                    val = ssm_client.get_parameter(Name=full_path)["Parameter"]["Value"]
+                try:
+                    if persisted_attr.use_secrets_manager:
+                        val = secret_mgr_client.get_secret_value(SecretId=full_path)["SecretString"]
+                    else:
+                        val = ssm_client.get_parameter(Name=full_path)["Parameter"]["Value"]
+                except (
+                    ssm_client.exceptions.ParameterNotFound,
+                    secret_mgr_client.exceptions.ResourceNotFoundException,
+                ) as exc:
+                    param_type = "Secret Manager Secret" if persisted_attr.use_secrets_manager else "SSM parameter"
+                    msg = f"Unable to load {param_type} {full_path}. It does not exist"
+                    _LOGGER.info(msg)
+                    raise AttributeNotFoundException(msg) from exc
 
                 res[persisted_attr.attribute] = val
 

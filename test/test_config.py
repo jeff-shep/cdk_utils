@@ -7,7 +7,14 @@ import boto3
 from aws_cdk.aws_ssm import StringParameter
 from moto import mock_secretsmanager, mock_ssm
 
-from cdkutils.config import GitHubConfig, PipelineConfig, PipIndexConfig, ServiceDetails, SsmConfig
+from cdkutils.config import (
+    AttributeNotFoundException,
+    GitHubConfig,
+    PipelineConfig,
+    PipIndexConfig,
+    ServiceDetails,
+    SsmConfig,
+)
 
 if TYPE_CHECKING:
     from mypy_boto3_secretsmanager.client import SecretsManagerClient
@@ -491,6 +498,22 @@ class GitHubConfigTest(TestCase):
         """
         with self.assertRaises(KeyError):
             GitHubConfig.get_secret_name("org", self.test_ssm_config)
+
+
+class PipIndexConfigTest(TestCase):
+    def setUp(self) -> None:
+        """common test setup"""
+        self.test_ssm_config = SsmConfig(namespace="unittest")
+
+    @mock_ssm
+    @mock_secretsmanager
+    def test_load_attribute_doesnt_exist_on_aws(self):
+        """
+        GIVEN that a parameter doesn't exist on AWS WHEN load is called THEN an AttributeNotFoundException is raised
+        """
+
+        with self.assertRaises(AttributeNotFoundException):
+            PipIndexConfig.load(self.test_ssm_config, boto3.Session())
 
 
 class PipelineConfigTest(TestCase):
