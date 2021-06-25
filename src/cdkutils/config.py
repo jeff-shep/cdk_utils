@@ -220,6 +220,10 @@ class PersistedConfig(ABC):
             raise KeyError(f"Attribute {attribute_name} is not stored in Secrets Manager")
         return ssm_config.get_full_path(param.aws_partial_path)
 
+    @classmethod
+    def get_secret_value(cls, attribute_name: str, ssm_config: SsmConfig) -> cdk.SecretValue:
+        return cdk.SecretValue.secrets_manager(cls.get_secret_name(attribute_name, ssm_config))
+
     def to_cdk(self, scope: cdk.Stack, ssm_config: SsmConfig) -> None:
 
         for mapping in self._get_persisted_attributes():
