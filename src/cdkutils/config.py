@@ -2,7 +2,7 @@
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, Union, final
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, TypeVar, Union, final
 
 import boto3
 from aws_cdk import aws_ssm as ssm
@@ -77,9 +77,18 @@ class PersistedAttribute:
     """Stores the CDK context variable and SSM parameter names linked to the attribute"""
 
     attribute: str
-    cdk_context_param: str
+    cdk_context_param: Optional[str]
     aws_partial_path: str
     use_secrets_manager: bool = False  # If false, the attribute is stored in a SSM Parameter
+
+    def __eq__(self, other: Any) -> bool:
+        return (
+            isinstance(other, PersistedAttribute)
+            and self.attribute == other.attribute
+            and self.cdk_context_param == other.cdk_context_param
+            and self.aws_partial_path == other.aws_partial_path
+            and self.use_secrets_manager == other.use_secrets_manager
+        )
 
 
 class ConfigException(Exception):
@@ -88,6 +97,9 @@ class ConfigException(Exception):
 
 class AttributeNotFoundException(ConfigException):
     pass
+
+
+T = TypeVar("T", bound="PersistedConfig")  # pylint:disable=invalid-name
 
 
 class PersistedConfig(ABC):
@@ -151,7 +163,18 @@ class PersistedConfig(ABC):
         secret_mgr_client: SecretsManagerClient = boto_session.client("secretsmanager")
 
         for persisted_attr in persisted_attrs:
-            if persisted_attr.aws_partial_path:
+            try:
+                is_attribute = not isinstance(getattr(cls, persisted_attr.attribute), property)
+                # Do not read values from AWS for properties, only true attributes. Properties are methods that can be
+                # accessed as if they were attributes. We use them here for values derived from other attributes, thus
+                # they aren't passed into the class' __init__ method, so we skip them here.
+            except AttributeError:
+                # Maybe counter-intuitive, but if the class doesn't have an attribute with the desired name, that
+                # implies it's an instance attribute that's declared and set by the __init__ method, and hence is not a
+                # property.
+                is_attribute = True
+
+            if is_attribute and persisted_attr.aws_partial_path:
                 full_path = ssm_config.get_full_path(persisted_attr.aws_partial_path)
                 try:
                     if persisted_attr.use_secrets_manager:
@@ -198,21 +221,23 @@ class PersistedConfig(ABC):
 
     @classmethod
     def load(
-        cls,
+        cls: Type[T],
         ssm_config: SsmConfig,
         boto_session: Optional[boto3.Session] = None,
         cdk_scope: Optional[cdk.Construct] = None,
-    ) -> "PersistedConfig":
+    ) -> T:
         kwargs = cls._get_init_args(ssm_config, boto_session, cdk_scope)
         return cls(ssm_config, **kwargs)
 
     @classmethod
+    @final
     def get_persisted_attribute(cls, attribute_name: str) -> PersistedAttribute:
         try:
             return next(a for a in cls._get_persisted_attributes() if a.attribute == attribute_name)
         except StopIteration as exc:
             raise KeyError(f"Didn't find a persisted attribute named {attribute_name!r}") from exc
 
+    @final
     def get_ssm_param_name(self, attribute_name: str, ssm_config_override: Optional[SsmConfig] = None) -> str:
 
         ssm_config = ssm_config_override if ssm_config_override else self.ssm
@@ -221,6 +246,7 @@ class PersistedConfig(ABC):
             raise KeyError(f"Attribute {attribute_name} is not stored in SSM")
         return ssm_config.get_full_path(param.aws_partial_path)
 
+    @final
     def get_secret_name(self, attribute_name: str, ssm_config_override: Optional[SsmConfig] = None) -> str:
 
         ssm_config = ssm_config_override if ssm_config_override else self.ssm
@@ -229,6 +255,7 @@ class PersistedConfig(ABC):
             raise KeyError(f"Attribute {attribute_name} is not stored in Secrets Manager")
         return ssm_config.get_full_path(param.aws_partial_path)
 
+    @final
     def get_secret_value(self, attribute_name: str, ssm_config_override: Optional[SsmConfig] = None) -> cdk.SecretValue:
         ssm_config = ssm_config_override if ssm_config_override else self.ssm
         return cdk.SecretValue.secrets_manager(self.get_secret_name(attribute_name, ssm_config))
@@ -382,8 +409,7 @@ class GitHubConfig(PersistedConfig):
 class PipIndexConfig(PersistedConfig):
     """Encapsulates the information required to setup pip to connect to a custom package index"""
 
-    _SSM_BASE_PATH = "pipeline/"
-    _SECRET_AUTH_PATH = _SSM_BASE_PATH + "python-pip/auth"
+    _SSM_BASE_PATH = "pipeline/python-pip/"
 
     def __init__(
         self,
@@ -426,33 +452,17 @@ class PipIndexConfig(PersistedConfig):
     @classmethod
     def _get_persisted_attributes(cls) -> List[PersistedAttribute]:
         return super()._get_persisted_attributes() + [
-            PersistedAttribute("username", "PipIndexUsername", cls._SSM_BASE_PATH + "python-pip/username"),
-            PersistedAttribute("url", "PipIndexUrl", cls._SSM_BASE_PATH + "python-pip/index-url"),
+            PersistedAttribute("username", "PipIndexUsername", cls._SSM_BASE_PATH + "username"),
+            PersistedAttribute("url", "PipIndexUrl", cls._SSM_BASE_PATH + "index-url"),
             PersistedAttribute(
-                "password", "PipIndexPassword", cls._SSM_BASE_PATH + "python-pip/password", use_secrets_manager=True
+                "password", "PipIndexPassword", cls._SSM_BASE_PATH + "password", use_secrets_manager=True
             ),
+            PersistedAttribute("credentials", None, cls._SSM_BASE_PATH + "auth", use_secrets_manager=True),
         ]
 
     @classmethod
     def _get_subconfigs(cls) -> Dict[str, Type["PersistedConfig"]]:
         return super()._get_subconfigs()
-
-    # def create_secrets(self, ssm_config: SsmConfig, boto_session: boto3.Session) -> None:
-    #     super().create_secrets(ssm_config, boto_session)
-    #
-    #     if self.credentials:
-    #         sm_client: SecretsManagerClient = boto_session.client("secretsmanager")
-    #         sm_client.create_secret(
-    #             Name=ssm_config.get_full_path(self._SECRET_AUTH_PATH), SecretString=self.credentials
-    #         )
-    #
-    # def delete_secrets(self, ssm_config: SsmConfig, boto_session: boto3.Session) -> None:
-    #     super().delete_secrets(ssm_config, boto_session)
-    #     sm_client: SecretsManagerClient = boto_session.client("secretsmanager")
-    #     try:
-    #         sm_client.delete_secret(SecretId=ssm_config.get_full_path(self._SECRET_AUTH_PATH))
-    #     except sm_client.exceptions.ResourceNotFoundException:
-    #         pass
 
 
 class BaseConfig(PersistedConfig, ABC):
@@ -591,18 +601,6 @@ class PipelineConfig(SharedPipelineConfig):
         self.deploy_to_prod = deploy_to_prod
         self.build_lambdas = build_lambdas
 
-        self.pipeline_parameters = " -c ".join(
-            [
-                "",  # Ensures the string starts with -c
-                f"BranchToBuild={self.branch_to_build}",
-                f"SSMNamespace={self.ssm.namespace}",
-                f"PipelineSSMConfigId={self.ssm.config_id}",
-                f"SystemSSMConfigId={self.ssm.config_id}",
-                f"DeployToCi={self.deploy_to_ci}",
-                f"DeployToProd={self.deploy_to_prod}",
-            ]
-        )
-
     def __eq__(self, other: Any) -> bool:
         return (
             isinstance(other, PipelineConfig)
@@ -620,7 +618,7 @@ class PipelineConfig(SharedPipelineConfig):
         ssm_config: SsmConfig,
         boto_session: Optional[boto3.Session] = None,
         cdk_scope: Optional[cdk.Construct] = None,
-    ) -> PersistedConfig:
+    ) -> "PipelineConfig":
 
         if not cdk_scope:
             raise Exception("cdk_scope must be provided so UniqueId cdk context variables can be read")
@@ -637,6 +635,19 @@ class PipelineConfig(SharedPipelineConfig):
             "build_lambdas": not cdk_scope.node.try_get_context("Local"),
         }
         kwargs.update(super()._get_init_args(ssm_config, boto_session, cdk_scope))
-
         # pylint is not so good at introspecting our _get_init_args dict
         return cls(ssm_config, **kwargs)  # pylint: disable=missing-kwoa
+
+    @property
+    def pipeline_parameters(self) -> str:
+        return " -c ".join(
+            [
+                "",  # Ensures the string starts with -c
+                f"BranchToBuild={self.branch_to_build}",
+                f"SSMNamespace={self.ssm.namespace}",
+                f"PipelineSSMConfigId={self.ssm.config_id}",
+                f"SystemSSMConfigId={self.ssm.config_id}",
+                f"DeployToCi={self.deploy_to_ci}",
+                f"DeployToProd={self.deploy_to_prod}",
+            ]
+        )

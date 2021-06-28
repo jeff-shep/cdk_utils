@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Optional, cast
+from typing import TYPE_CHECKING, Optional
 from unittest import TestCase, mock
 from unittest.mock import Mock, call
 
@@ -10,6 +10,7 @@ from moto import mock_secretsmanager, mock_ssm
 from cdkutils.config import (
     AttributeNotFoundException,
     GitHubConfig,
+    PersistedAttribute,
     PipelineConfig,
     PipIndexConfig,
     ServiceDetails,
@@ -168,6 +169,14 @@ class SsmConfigTest(TestCase):
 
         self.assertEqual(expected_path_prefix, actual.path_prefix)
         self.assertEqual(f"{expected_path_prefix}/foo", actual.get_full_path("foo"))
+
+    def test_str(self):
+        """GIVEN a valid SsmConfig object WHEN its __str__ method is called THEN it returns its path_prefix attribute"""
+        expected_namespace = "test"
+        expected_path_prefix = f"/{self.DEFAULT_ORG}/{expected_namespace}/{self.DEFAULT_CONFIG_ID}"
+        actual = SsmConfig(namespace=expected_namespace)
+
+        self.assertEqual(expected_path_prefix, str(actual))
 
 
 class ServiceDetailsTest(TestCase):
@@ -513,6 +522,84 @@ class PipIndexConfigTest(TestCase):
         with self.assertRaises(AttributeNotFoundException):
             PipIndexConfig.load(self.test_ssm_config, boto3.Session())
 
+    def test_credentials(self):
+        """
+        GIVEN username, password, and url are supplied
+        WHEN credentials property is accessed
+        THEN correct credentials returned
+        """
+        test_username = "foo@metoffice.gov.uk"
+        test_pass = "this_is_the_password"
+        test_url = "myindex.somewhere.com/foo/bar/baz"
+        expected_credentials = f"https://{test_username}:{test_pass}@{test_url}"
+
+        pip_conf = PipIndexConfig(self.test_ssm_config, test_username, test_pass, f"https://{test_url}")
+
+        self.assertEqual(expected_credentials, pip_conf.credentials)
+
+    def test_credentials_default_url(self):
+        """
+        GIVEN username and password are supplied WHEN credentials property is accessed THEN correct credentials returned
+        """
+        test_username = "foo@metoffice.gov.uk"
+        test_pass = "this_is_the_password"
+        expected_credentials = f"https://{test_username}:{test_pass}@metoffice.jfrog.io/metoffice/api/pypi/pypi/simple"
+
+        pip_conf = PipIndexConfig(self.test_ssm_config, test_username, test_pass)
+
+        self.assertEqual(expected_credentials, pip_conf.credentials)
+
+    @mock_ssm
+    @mock_secretsmanager
+    def test_load_with_properties(self):
+        """
+        GIVEN an SsmConfig and boto3.Session AND a property that is persisted
+        WHEN PipIndexConfig.load is called
+        THEN the expected instance is returned
+
+        This test is particularly interested in the handling of the property, because the credentials property is
+        derived from the other attributes, not loaded from AWS or CDK (although it is written to AWS)
+        """
+        ssm: SSMClient = boto3.client("ssm")
+        secret_mgr: SecretsManagerClient = boto3.client("secretsmanager")
+
+        expected_username = "foo@metoffice.gov.uk"
+        ssm.put_parameter(
+            Name=self.test_ssm_config.get_full_path("pipeline/python-pip/username"), Value=expected_username
+        )
+
+        expected_pass = "this_is_the_password"
+        secret_mgr.create_secret(
+            Name=self.test_ssm_config.get_full_path("pipeline/python-pip/password"), SecretString=expected_pass
+        )
+
+        url_part = "metoffice.jfrog.io/metoffice/api/pypi/pypi/simple"
+        ssm.put_parameter(
+            Name=self.test_ssm_config.get_full_path("pipeline/python-pip/index-url"),
+            Value=f"https://{url_part}",
+        )
+
+        secret_mgr.create_secret(
+            Name=self.test_ssm_config.get_full_path("pipeline/python-pip/auth"), SecretString="Unexpected Credentials"
+        )  # This Secret should be ignored by the load method
+
+        expected = PipIndexConfig(self.test_ssm_config, expected_username, expected_pass)
+        actual = PipIndexConfig.load(self.test_ssm_config, boto3.Session())
+
+        self.assertEqual(expected.credentials, actual.credentials)
+
+    def test_get_persisted_attribute_with_credentials(self):
+        """
+        WHEN get_persisted_attribute is called with credentials
+        THEN a PersistedAttribute instance for the credentials attribute is returned
+
+        PipIndexConfig.credentials is a property with its value derived dynamically from other attributes, so the
+        handling is slightly different compared to normal attributes
+        """
+        expected = PersistedAttribute("credentials", None, "pipeline/python-pip/auth", True)
+        actual = PipIndexConfig.get_persisted_attribute("credentials")
+        self.assertEqual(expected, actual)
+
 
 class PipelineConfigTest(TestCase):
     def setUp(self) -> None:
@@ -575,6 +662,6 @@ class PipelineConfigTest(TestCase):
             sonarcloud_token=expected_sonarcloud_token,
         )
 
-        actual = cast(PipelineConfig, PipelineConfig.load(self.test_ssm_config, boto3.Session(), mock_cdk_scope))
+        actual = PipelineConfig.load(self.test_ssm_config, boto3.Session(), mock_cdk_scope)
 
         self.assertEqual(expected_pipeline_config, actual)
