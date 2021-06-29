@@ -600,6 +600,44 @@ class PipIndexConfigTest(TestCase):
         actual = PipIndexConfig.get_persisted_attribute("credentials")
         self.assertEqual(expected, actual)
 
+    def test_get_cdk_secret_value(self):
+        test_username = "foo@metoffice.gov.uk"
+        test_pass = "this_is_the_password"
+        pip_conf = PipIndexConfig(self.test_ssm_config, test_username, test_pass)
+        expected_secret_value = cdk.SecretValue(value=pip_conf.credentials)
+
+        actual = pip_conf.get_cdk_secret_value("credentials")
+
+        self.assertEqual(expected_secret_value.plain_text, actual.plain_text)
+
+    def test_get_cdk_secret_value_not_a_secret(self):
+
+        with self.assertRaises(KeyError):
+            PipIndexConfig(self.test_ssm_config).get_cdk_secret_value("username")
+
+    @mock_ssm
+    @mock_secretsmanager
+    def test_create_secrets(self):
+        test_username = "foo@metoffice.gov.uk"
+        test_pass = "this_is_the_password"
+        pip_conf = PipIndexConfig(self.test_ssm_config, test_username, test_pass)
+
+        pip_conf.create_secrets(boto3.Session())
+
+        secrets_mgr: SecretsManagerClient = boto3.client("secretsmanager")
+        self.assertEqual(
+            pip_conf.credentials,
+            secrets_mgr.get_secret_value(SecretId=pip_conf.get_secret_name("credentials"))["SecretString"],
+        )
+        self.assertEqual(
+            pip_conf.password,
+            secrets_mgr.get_secret_value(SecretId=pip_conf.get_secret_name("password"))["SecretString"],
+        )
+        with self.assertRaises(secrets_mgr.exceptions.ResourceNotFoundException):
+            secrets_mgr.get_secret_value(SecretId=pip_conf.get_ssm_param_name("username"))
+        with self.assertRaises(secrets_mgr.exceptions.ResourceNotFoundException):
+            secrets_mgr.get_secret_value(SecretId=pip_conf.get_ssm_param_name("url"))
+
 
 class PipelineConfigTest(TestCase):
     def setUp(self) -> None:

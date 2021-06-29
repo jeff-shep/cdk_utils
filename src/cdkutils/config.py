@@ -256,9 +256,12 @@ class PersistedConfig(ABC):
         return ssm_config.get_full_path(param.aws_partial_path)
 
     @final
-    def get_secret_value(self, attribute_name: str, ssm_config_override: Optional[SsmConfig] = None) -> cdk.SecretValue:
-        ssm_config = ssm_config_override if ssm_config_override else self.ssm
-        return cdk.SecretValue.secrets_manager(self.get_secret_name(attribute_name, ssm_config))
+    def get_cdk_secret_value(self, attribute_name: str) -> cdk.SecretValue:
+        persisted_attr = self.get_persisted_attribute(attribute_name)
+        if persisted_attr.use_secrets_manager:
+            return cdk.SecretValue(value=getattr(self, attribute_name))
+
+        raise KeyError(f"Attribute {attribute_name} is not stored in Secrets Manager")
 
     def to_cdk(self, scope: cdk.Stack, ssm_config_override: Optional[SsmConfig] = None) -> None:
 
@@ -282,30 +285,38 @@ class PersistedConfig(ABC):
         for attribute_name in self._get_subconfigs():
             getattr(self, attribute_name).to_cdk(scope, ssm_config)
 
-    # def create_secrets(self, ssm_config: SsmConfig, boto_session: boto3.Session) -> None:
-    #     sm_client: SecretsManagerClient = boto_session.client("secretsmanager")
-    #     for mapping in self._get_persisted_attributes():
-    #         if mapping.use_secrets_manager:
-    #             secret_string = getattr(self, mapping.attribute)
-    #             if secret_string:
-    #                 sm_client.create_secret(
-    #                     Name=ssm_config.get_full_path(mapping.aws_partial_path), SecretString=secret_string
-    #                 )
-    #
-    #     for subconfig in self._get_subconfigs():
-    #         getattr(self, subconfig).create_secrets(ssm_config, boto_session)
-    #
-    # def delete_secrets(self, ssm_config: SsmConfig, boto_session: boto3.Session) -> None:
-    #     sm_client: SecretsManagerClient = boto_session.client("secretsmanager")
-    #     for mapping in self._get_persisted_attributes():
-    #         if mapping.use_secrets_manager:
-    #             try:
-    #                 sm_client.delete_secret(SecretId=ssm_config.get_full_path(mapping.aws_partial_path))
-    #             except sm_client.exceptions.ResourceNotFoundException:
-    #                 pass
-    #
-    #     for subconfig in self._get_subconfigs():
-    #         getattr(self, subconfig).delete_secrets(ssm_config, boto_session)
+    @final
+    def create_secrets(self, boto_session: boto3.Session, ssm_config_override: Optional[SsmConfig] = None) -> None:
+
+        ssm_config = ssm_config_override if ssm_config_override else self.ssm
+        sm_client: SecretsManagerClient = boto_session.client("secretsmanager")
+
+        for mapping in self._get_persisted_attributes():
+            if mapping.use_secrets_manager:
+                secret_string = getattr(self, mapping.attribute)
+                if secret_string:
+                    sm_client.create_secret(
+                        Name=ssm_config.get_full_path(mapping.aws_partial_path), SecretString=secret_string
+                    )
+
+        for subconfig in self._get_subconfigs():
+            getattr(self, subconfig).create_secrets(boto_session)
+
+    @final
+    def delete_secrets(self, boto_session: boto3.Session, ssm_config_override: Optional[SsmConfig] = None) -> None:
+
+        ssm_config = ssm_config_override if ssm_config_override else self.ssm
+        sm_client: SecretsManagerClient = boto_session.client("secretsmanager")
+
+        for mapping in self._get_persisted_attributes():
+            if mapping.use_secrets_manager:
+                try:
+                    sm_client.delete_secret(SecretId=ssm_config.get_full_path(mapping.aws_partial_path))
+                except sm_client.exceptions.ResourceNotFoundException:
+                    pass
+
+        for subconfig in self._get_subconfigs():
+            getattr(self, subconfig).delete_secrets(boto_session)
 
 
 class ServiceDetails(PersistedConfig):
