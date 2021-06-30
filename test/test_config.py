@@ -9,6 +9,7 @@ from moto import mock_secretsmanager, mock_ssm
 
 from cdkutils.config import (
     AttributeNotFoundException,
+    ConfigException,
     GitHubConfig,
     PersistedAttribute,
     PipelineConfig,
@@ -638,6 +639,34 @@ class PipIndexConfigTest(TestCase):
         with self.assertRaises(secrets_mgr.exceptions.ResourceNotFoundException):
             secrets_mgr.get_secret_value(SecretId=pip_conf.get_ssm_param_name("url"))
 
+    @mock_ssm
+    @mock_secretsmanager
+    def test_delete_secrets(self):
+        test_username = "foo@metoffice.gov.uk"
+        test_pass = "this_is_the_password"
+        pip_conf = PipIndexConfig(self.test_ssm_config, test_username, test_pass)
+
+        credentials_secret_name = pip_conf.get_secret_name("credentials")
+        password_secret_name = pip_conf.get_secret_name("password")
+
+        secrets_mgr: SecretsManagerClient = boto3.client("secretsmanager")
+        secrets_mgr.create_secret(Name=credentials_secret_name, SecretString=pip_conf.credentials)
+        secrets_mgr.create_secret(Name=password_secret_name, SecretString=pip_conf.password)
+
+        pip_conf.delete_secrets(boto3.Session())
+
+        # InvalidRequestException for secrets that have been marked deleted, but not yet deleted
+        with self.assertRaises(secrets_mgr.exceptions.InvalidRequestException):
+            secrets_mgr.get_secret_value(SecretId=credentials_secret_name)
+        with self.assertRaises(secrets_mgr.exceptions.InvalidRequestException):
+            secrets_mgr.get_secret_value(SecretId=password_secret_name)
+
+        # ResourceNotFoundException for secrets that don't exist
+        with self.assertRaises(secrets_mgr.exceptions.ResourceNotFoundException):
+            secrets_mgr.get_secret_value(SecretId=pip_conf.get_ssm_param_name("username"))
+        with self.assertRaises(secrets_mgr.exceptions.ResourceNotFoundException):
+            secrets_mgr.get_secret_value(SecretId=pip_conf.get_ssm_param_name("url"))
+
 
 class PipelineConfigTest(TestCase):
     def setUp(self) -> None:
@@ -703,3 +732,22 @@ class PipelineConfigTest(TestCase):
         actual = PipelineConfig.load(self.test_ssm_config, boto3.Session(), mock_cdk_scope)
 
         self.assertEqual(expected_pipeline_config, actual)
+        self.assertEqual(
+            f"-c BranchToBuild={expected_branch_to_build} -c SSMNamespace={self.test_ssm_config.namespace} "
+            f"-c PipelineSSMConfigId={self.test_ssm_config.config_id} "
+            f"-c SystemSSMConfigId={self.test_ssm_config.config_id} -c DeployToCi={expected_deploy_to_ci} "
+            f"-c DeployToProd={expected_deploy_to_prod}",
+            actual.pipeline_parameters,
+        )
+
+    @mock_ssm
+    @mock_secretsmanager
+    def test_load_no_cdk_scope(self):
+        with self.assertRaises(ConfigException):
+            PipelineConfig.load(self.test_ssm_config)
+
+    @mock_ssm
+    @mock_secretsmanager
+    def test_load_unique_id_missing(self):
+        with self.assertRaises(ConfigException):
+            PipelineConfig.load(self.test_ssm_config, boto3.Session(), get_mock_cdk_scope())

@@ -3,11 +3,11 @@ from typing import Any
 import aws_cdk.core as cdk
 import boto3
 
-from cdkutils.config import SharedPipelineConfig
+from cdkutils.config import BaseConfig
 
 
 class ConfigStack(cdk.Stack):
-    def __init__(self, scope: cdk.Construct, construct_id: str, pipeline_config: SharedPipelineConfig, **kwargs: Any):
+    def __init__(self, scope: cdk.Construct, construct_id: str, pipeline_config: BaseConfig, **kwargs: Any):
         super().__init__(scope, construct_id, **kwargs)
 
         pipeline_config.to_cdk(self)

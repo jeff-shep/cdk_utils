@@ -1,4 +1,5 @@
 """Classes for persisting and accessing pipeline config"""
+import contextlib
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -149,7 +150,11 @@ class PersistedConfig(ABC):
     @classmethod
     @final
     def _get_init_args_from_aws(
-        cls, ssm_config: SsmConfig, boto_session: boto3.Session, persisted_attrs: List[PersistedAttribute]
+        cls,
+        ssm_config: SsmConfig,
+        boto_session: boto3.Session,
+        persisted_attrs: List[PersistedAttribute],
+        allow_missing_values: bool = False,
     ) -> Dict[str, str]:
         """
         Given a list of PersistedAttributes, return a dict of `PersistedAttribute.attribute` mapped to its valued.
@@ -185,6 +190,9 @@ class PersistedConfig(ABC):
                     ssm_client.exceptions.ParameterNotFound,
                     secret_mgr_client.exceptions.ResourceNotFoundException,
                 ) as exc:
+                    if allow_missing_values:
+                        pass
+
                     param_type = "Secret Manager Secret" if persisted_attr.use_secrets_manager else "SSM parameter"
                     msg = f"Unable to load {param_type} {full_path}. It does not exist"
                     _LOGGER.info(msg)
@@ -201,6 +209,7 @@ class PersistedConfig(ABC):
         ssm_config: SsmConfig,
         boto_session: Optional[boto3.Session] = None,
         cdk_scope: Optional[cdk.Construct] = None,
+        allow_missing_values: bool = False,
     ) -> Dict[str, Union["PersistedConfig", str]]:
         kwargs: Dict[str, Union["PersistedConfig", str]] = {}
 
@@ -211,11 +220,13 @@ class PersistedConfig(ABC):
 
         if ssm_config and boto_session:
             attrs_to_get_from_aws = [a for a in persisted_attrs if a.attribute not in kwargs]
-            kwargs.update(cls._get_init_args_from_aws(ssm_config, boto_session, attrs_to_get_from_aws))
+            kwargs.update(
+                cls._get_init_args_from_aws(ssm_config, boto_session, attrs_to_get_from_aws, allow_missing_values)
+            )
 
         # Deal with nested configs
         for attribute_name, subconfig_class in cls._get_subconfigs().items():
-            kwargs[attribute_name] = subconfig_class.load(ssm_config, boto_session, cdk_scope)
+            kwargs[attribute_name] = subconfig_class.load(ssm_config, boto_session, cdk_scope, allow_missing_values)
 
         return kwargs
 
@@ -225,8 +236,9 @@ class PersistedConfig(ABC):
         ssm_config: SsmConfig,
         boto_session: Optional[boto3.Session] = None,
         cdk_scope: Optional[cdk.Construct] = None,
+        allow_missing_values: bool = False,
     ) -> T:
-        kwargs = cls._get_init_args(ssm_config, boto_session, cdk_scope)
+        kwargs = cls._get_init_args(ssm_config, boto_session, cdk_scope, allow_missing_values)
         return cls(ssm_config, **kwargs)
 
     @classmethod
@@ -269,14 +281,14 @@ class PersistedConfig(ABC):
 
         for mapping in self._get_persisted_attributes():
             if mapping.use_secrets_manager:
-                print(
-                    f"INFO: Not creating SecretsManager Secret for {mapping.attribute} because the value would be "
-                    f"stored in plaintext in the resulting template. Use the python script to create Secrets instead"
+                _LOGGER.info(
+                    f"Not creating SecretsManager Secret for {mapping.attribute} because the value would be "
+                    f"stored in plaintext in the resulting template. Call create_secrets instead."
                 )
             else:
                 val = getattr(self, mapping.attribute)
                 if not val:
-                    print(f"INFO: skipping {type(self).__name__}.{mapping.attribute} because no value is set")
+                    _LOGGER.info(f"Skipping {type(self).__name__}.{mapping.attribute} because no value is set")
                     continue
                 full_path = ssm_config.get_full_path(mapping.aws_partial_path)
                 ssm.StringParameter(scope, f"{mapping.attribute}-ssm", parameter_name=full_path, string_value=val)
@@ -295,9 +307,9 @@ class PersistedConfig(ABC):
             if mapping.use_secrets_manager:
                 secret_string = getattr(self, mapping.attribute)
                 if secret_string:
-                    sm_client.create_secret(
-                        Name=ssm_config.get_full_path(mapping.aws_partial_path), SecretString=secret_string
-                    )
+                    name = ssm_config.get_full_path(mapping.aws_partial_path)
+                    sm_client.create_secret(Name=name, SecretString=secret_string)
+                    _LOGGER.info(f"Created {name} in Secret Manager")
 
         for subconfig in self._get_subconfigs():
             getattr(self, subconfig).create_secrets(boto_session)
@@ -310,10 +322,10 @@ class PersistedConfig(ABC):
 
         for mapping in self._get_persisted_attributes():
             if mapping.use_secrets_manager:
-                try:
+                with contextlib.suppress(
+                    sm_client.exceptions.ResourceNotFoundException, sm_client.exceptions.InvalidRequestException
+                ):
                     sm_client.delete_secret(SecretId=ssm_config.get_full_path(mapping.aws_partial_path))
-                except sm_client.exceptions.ResourceNotFoundException:
-                    pass
 
         for subconfig in self._get_subconfigs():
             getattr(self, subconfig).delete_secrets(boto_session)
@@ -629,14 +641,15 @@ class PipelineConfig(SharedPipelineConfig):
         ssm_config: SsmConfig,
         boto_session: Optional[boto3.Session] = None,
         cdk_scope: Optional[cdk.Construct] = None,
+        allow_missing_values: bool = False,
     ) -> "PipelineConfig":
 
         if not cdk_scope:
-            raise Exception("cdk_scope must be provided so UniqueId cdk context variables can be read")
+            raise ConfigException("cdk_scope must be provided so UniqueId cdk context variables can be read")
 
         unique_id = cdk_scope.node.try_get_context("UniqueId")
         if not unique_id:
-            raise Exception("UniqueId must be specified")
+            raise ConfigException("UniqueId must be specified")
 
         kwargs = {
             "unique_id": unique_id,
@@ -645,7 +658,7 @@ class PipelineConfig(SharedPipelineConfig):
             "deploy_to_prod": bool(cdk_scope.node.try_get_context("DeployToProd")),
             "build_lambdas": not cdk_scope.node.try_get_context("Local"),
         }
-        kwargs.update(super()._get_init_args(ssm_config, boto_session, cdk_scope))
+        kwargs.update(super()._get_init_args(ssm_config, boto_session, cdk_scope, allow_missing_values))
         # pylint is not so good at introspecting our _get_init_args dict
         return cls(ssm_config, **kwargs)  # pylint: disable=missing-kwoa
 
@@ -661,4 +674,4 @@ class PipelineConfig(SharedPipelineConfig):
                 f"DeployToCi={self.deploy_to_ci}",
                 f"DeployToProd={self.deploy_to_prod}",
             ]
-        )
+        ).strip()
