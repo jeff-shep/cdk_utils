@@ -1,5 +1,6 @@
 """Classes for persisting and accessing pipeline config"""
 import contextlib
+import inspect
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -154,7 +155,6 @@ class PersistedConfig(ABC):
         ssm_config: SsmConfig,
         boto_session: boto3.Session,
         persisted_attrs: List[PersistedAttribute],
-        allow_missing_values: bool = False,
     ) -> Dict[str, str]:
         """
         Given a list of PersistedAttributes, return a dict of `PersistedAttribute.attribute` mapped to its valued.
@@ -163,6 +163,10 @@ class PersistedConfig(ABC):
         If a SSM/Secret with that name doesn't exist, an exception will be thrown.
         `PersistedAttribute`s that don't have an `aws_partial_path` value are ignored.
         """
+        # This is a local method, for local developers!
+        # pylint:disable=too-many-locals
+        # Suggestions welcome
+
         res: Dict[str, str] = {}
         ssm_client: SSMClient = boto_session.client("ssm")
         secret_mgr_client: SecretsManagerClient = boto_session.client("secretsmanager")
@@ -190,13 +194,14 @@ class PersistedConfig(ABC):
                     ssm_client.exceptions.ParameterNotFound,
                     secret_mgr_client.exceptions.ResourceNotFoundException,
                 ) as exc:
-                    if allow_missing_values:
-                        pass
-
-                    param_type = "Secret Manager Secret" if persisted_attr.use_secrets_manager else "SSM parameter"
-                    msg = f"Unable to load {param_type} {full_path}. It does not exist"
-                    _LOGGER.info(msg)
-                    raise AttributeNotFoundException(msg) from exc
+                    default_value = inspect.signature(cls.__init__).parameters[persisted_attr.attribute].default
+                    if default_value and default_value != inspect.Parameter.empty:
+                        val = default_value
+                    else:
+                        param_type = "Secret Manager Secret" if persisted_attr.use_secrets_manager else "SSM parameter"
+                        msg = f"Unable to load {param_type} {full_path}. It does not exist"
+                        _LOGGER.info(msg)
+                        raise AttributeNotFoundException(msg) from exc
 
                 res[persisted_attr.attribute] = val
 
@@ -209,7 +214,6 @@ class PersistedConfig(ABC):
         ssm_config: SsmConfig,
         boto_session: Optional[boto3.Session] = None,
         cdk_scope: Optional[cdk.Construct] = None,
-        allow_missing_values: bool = False,
     ) -> Dict[str, Union["PersistedConfig", str]]:
         kwargs: Dict[str, Union["PersistedConfig", str]] = {}
 
@@ -220,13 +224,11 @@ class PersistedConfig(ABC):
 
         if ssm_config and boto_session:
             attrs_to_get_from_aws = [a for a in persisted_attrs if a.attribute not in kwargs]
-            kwargs.update(
-                cls._get_init_args_from_aws(ssm_config, boto_session, attrs_to_get_from_aws, allow_missing_values)
-            )
+            kwargs.update(cls._get_init_args_from_aws(ssm_config, boto_session, attrs_to_get_from_aws))
 
         # Deal with nested configs
         for attribute_name, subconfig_class in cls._get_subconfigs().items():
-            kwargs[attribute_name] = subconfig_class.load(ssm_config, boto_session, cdk_scope, allow_missing_values)
+            kwargs[attribute_name] = subconfig_class.load(ssm_config, boto_session, cdk_scope)
 
         return kwargs
 
@@ -236,9 +238,8 @@ class PersistedConfig(ABC):
         ssm_config: SsmConfig,
         boto_session: Optional[boto3.Session] = None,
         cdk_scope: Optional[cdk.Construct] = None,
-        allow_missing_values: bool = False,
     ) -> T:
-        kwargs = cls._get_init_args(ssm_config, boto_session, cdk_scope, allow_missing_values)
+        kwargs = cls._get_init_args(ssm_config, boto_session, cdk_scope)
         return cls(ssm_config, **kwargs)
 
     @classmethod
@@ -655,7 +656,6 @@ class PipelineConfig(BaseConfig):
         ssm_config: SsmConfig,
         boto_session: Optional[boto3.Session] = None,
         cdk_scope: Optional[cdk.Construct] = None,
-        allow_missing_values: bool = False,
     ) -> "PipelineConfig":
 
         if not cdk_scope:
@@ -672,7 +672,7 @@ class PipelineConfig(BaseConfig):
             "deploy_to_prod": bool(cdk_scope.node.try_get_context("DeployToProd")),
             "build_lambdas": not cdk_scope.node.try_get_context("Local"),
         }
-        kwargs.update(super()._get_init_args(ssm_config, boto_session, cdk_scope, allow_missing_values))
+        kwargs.update(super()._get_init_args(ssm_config, boto_session, cdk_scope))
         # pylint is not so good at introspecting our _get_init_args dict
         return cls(ssm_config, **kwargs)  # pylint: disable=missing-kwoa
 
