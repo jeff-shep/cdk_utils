@@ -15,4 +15,5 @@ class ConfigStack(cdk.Stack):
         if scope.node.try_get_context("create_secrets"):
             pipeline_config.create_secrets(boto3.Session())
         elif scope.node.try_get_context("delete_secrets"):
-            pipeline_config.delete_secrets(boto3.Session())
+            no_recovery = bool(scope.node.try_get_context("force_delete"))
+            pipeline_config.delete_secrets(boto3.Session(), no_recovery=no_recovery)

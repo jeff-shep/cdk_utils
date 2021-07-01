@@ -592,10 +592,6 @@ class CommonPipelineConfig(BaseConfig):
     @classmethod
     def _get_persisted_attributes(cls) -> List[PersistedAttribute]:
         return super()._get_persisted_attributes() + [
-            PersistedAttribute("mgmt_account_id", "MgmtAccountId", "pipeline/account_id/mgmt"),
-            PersistedAttribute("dev_account_id", "DevAccountId", "pipeline/account_id/dev"),
-            PersistedAttribute("ci_account_id", "CiAccountId", "pipeline/account_id/ci"),
-            PersistedAttribute("prod_account_id", "ProdAccountId", "pipeline/account_id/prod"),
             PersistedAttribute(
                 "sonarcloud_token", "SonarCloudToken", "pipeline/sonarcloud/auth", use_secrets_manager=True
             ),
