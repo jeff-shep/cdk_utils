@@ -8,7 +8,9 @@ from aws_cdk.aws_ssm import StringParameter
 from moto import mock_secretsmanager, mock_ssm
 
 from cdkutils.config import (
+    AccountIdConfig,
     AttributeNotFoundException,
+    CommonPipelineConfig,
     ConfigException,
     GitHubConfig,
     PersistedAttribute,
@@ -697,14 +699,20 @@ class PipelineConfigTest(TestCase):
             build_lambdas=expected_build_lambdas,
             deploy_to_ci=expected_deploy_to_ci,
             deploy_to_prod=expected_deploy_to_prod,
-            service=expected_service_details,
-            mgmt_account_id=expected_mgmt_account_id,
-            dev_account_id=expected_dev_account_id,
-            ci_account_id=expected_ci_account_id,
-            prod_account_id=expected_prod_account_id,
-            github=expected_github_config,
-            pip=expected_pip_config,
-            sonarcloud_token=expected_sonarcloud_token,
+            common=CommonPipelineConfig(
+                ssm_config=self.test_ssm_config,
+                service=expected_service_details,
+                account_ids=AccountIdConfig(
+                    self.test_ssm_config,
+                    mgmt=expected_mgmt_account_id,
+                    dev=expected_dev_account_id,
+                    ci=expected_ci_account_id,
+                    prod=expected_prod_account_id,
+                ),
+                github=expected_github_config,
+                pip=expected_pip_config,
+                sonarcloud_token=expected_sonarcloud_token,
+            ),
         )
 
         mock_cdk_scope = get_mock_cdk_scope(

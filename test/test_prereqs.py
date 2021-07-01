@@ -4,13 +4,13 @@ from unittest.mock import Mock
 import aws_cdk.core as cdk
 from moto import mock_secretsmanager
 
-from cdkutils.config import SharedPipelineConfig
+from cdkutils.config import CommonPipelineConfig
 from cdkutils.prereqs import ConfigStack
 
 
 class ConfigStackTest(TestCase):
     def setUp(self) -> None:
-        self.mock_config = Mock(spec=SharedPipelineConfig)
+        self.mock_config = Mock(spec=CommonPipelineConfig)
 
     def test_init(self):
         config_stack = ConfigStack(cdk.App(), "test", self.mock_config)

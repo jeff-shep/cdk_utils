@@ -315,7 +315,9 @@ class PersistedConfig(ABC):
             getattr(self, subconfig).create_secrets(boto_session)
 
     @final
-    def delete_secrets(self, boto_session: boto3.Session, ssm_config_override: Optional[SsmConfig] = None) -> None:
+    def delete_secrets(
+        self, boto_session: boto3.Session, ssm_config_override: Optional[SsmConfig] = None, no_recovery: bool = False
+    ) -> None:
 
         ssm_config = ssm_config_override if ssm_config_override else self.ssm
         sm_client: SecretsManagerClient = boto_session.client("secretsmanager")
@@ -325,7 +327,10 @@ class PersistedConfig(ABC):
                 with contextlib.suppress(
                     sm_client.exceptions.ResourceNotFoundException, sm_client.exceptions.InvalidRequestException
                 ):
-                    sm_client.delete_secret(SecretId=ssm_config.get_full_path(mapping.aws_partial_path))
+                    sm_client.delete_secret(
+                        SecretId=ssm_config.get_full_path(mapping.aws_partial_path),
+                        ForceDeleteWithoutRecovery=no_recovery,
+                    )
 
         for subconfig in self._get_subconfigs():
             getattr(self, subconfig).delete_secrets(boto_session)
@@ -489,16 +494,6 @@ class PipIndexConfig(PersistedConfig):
 
 
 class BaseConfig(PersistedConfig, ABC):
-    def __init__(
-        self,
-        ssm_config: SsmConfig,
-        *,
-        service: ServiceDetails,
-        **kwargs: Any,
-    ) -> None:
-        super().__init__(ssm_config, **kwargs)
-        self.service = service
-
     @classmethod
     def _get_persisted_attributes(cls) -> List[PersistedAttribute]:
         return super()._get_persisted_attributes() + []
@@ -510,15 +505,52 @@ class BaseConfig(PersistedConfig, ABC):
         return subconfigs
 
     def __eq__(self, other: Any) -> bool:
+        return isinstance(other, BaseConfig) and super().__eq__(other) and self.ssm == other.ssm
+
+
+class AccountIdConfig(PersistedConfig):
+    def __init__(
+        self,
+        ssm_config: SsmConfig,
+        *,
+        mgmt: str,
+        dev: str,
+        ci: str,  # pylint:disable=invalid-name
+        prod: str,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(ssm_config, **kwargs)
+        self.mgmt = mgmt
+        self.dev = dev
+        # pylint moans because it's too short, but I can't think of a better one that's longer
+        self.ci = ci  # pylint:disable=invalid-name
+        self.prod = prod
+
+    def __eq__(self, other: Any) -> bool:
         return (
-            isinstance(other, BaseConfig)
+            isinstance(other, AccountIdConfig)
             and super().__eq__(other)
-            and self.ssm == other.ssm
-            and self.service == other.service
+            and self.mgmt == other.mgmt
+            and self.dev == other.dev
+            and self.ci == other.ci
+            and self.prod == other.prod
         )
 
+    @classmethod
+    def _get_subconfigs(cls) -> Dict[str, Type["PersistedConfig"]]:
+        return super()._get_subconfigs()
 
-class SharedPipelineConfig(BaseConfig):
+    @classmethod
+    def _get_persisted_attributes(cls) -> List[PersistedAttribute]:
+        return super()._get_persisted_attributes() + [
+            PersistedAttribute("mgmt", "MgmtAccountId", "pipeline/account_id/mgmt"),
+            PersistedAttribute("dev", "DevAccountId", "pipeline/account_id/dev"),
+            PersistedAttribute("ci", "CiAccountId", "pipeline/account_id/ci"),
+            PersistedAttribute("prod", "ProdAccountId", "pipeline/account_id/prod"),
+        ]
+
+
+class CommonPipelineConfig(BaseConfig):
     """
     Represents config that's shared between multiple pipelines. Designed for inheritance, hence the use of
     kwargs & super.
@@ -532,32 +564,25 @@ class SharedPipelineConfig(BaseConfig):
         ssm_config: SsmConfig,
         *,
         service: ServiceDetails,
-        mgmt_account_id: str,
-        dev_account_id: str,
-        ci_account_id: str,
-        prod_account_id: str,
+        account_ids: AccountIdConfig,
         github: GitHubConfig,
         pip: PipIndexConfig,
         sonarcloud_token: str,
         **kwargs: Any,
     ) -> None:
-        super().__init__(ssm_config, service=service, **kwargs)
-        self.mgmt_account_id = mgmt_account_id
-        self.dev_account_id = dev_account_id
-        self.ci_account_id = ci_account_id
-        self.prod_account_id = prod_account_id
+        super().__init__(ssm_config, **kwargs)
+        self.service = service
+        self.account_ids = account_ids
         self.github = github
         self.pip = pip
         self.sonarcloud_token = sonarcloud_token
 
     def __eq__(self, other: Any) -> bool:
         return (
-            isinstance(other, SharedPipelineConfig)
+            isinstance(other, CommonPipelineConfig)
             and super().__eq__(other)
-            and self.mgmt_account_id == other.mgmt_account_id
-            and self.dev_account_id == other.dev_account_id
-            and self.ci_account_id == other.ci_account_id
-            and self.prod_account_id == other.prod_account_id
+            and self.account_ids == other.account_ids
+            and self.service == other.service
             and self.github == other.github
             and self.pip == other.pip
             and self.sonarcloud_token == other.sonarcloud_token
@@ -578,11 +603,13 @@ class SharedPipelineConfig(BaseConfig):
     @classmethod
     def _get_subconfigs(cls) -> Dict[str, Type["PersistedConfig"]]:
         subconfigs = super()._get_subconfigs()
-        subconfigs.update(github=GitHubConfig, pip=PipIndexConfig, service=ServiceDetails)
+        subconfigs.update(account_ids=AccountIdConfig, github=GitHubConfig, pip=PipIndexConfig, service=ServiceDetails)
         return subconfigs
 
 
-class PipelineConfig(SharedPipelineConfig):
+class PipelineConfig(BaseConfig):
+    """Config for a particular pipeline instance, which includes the common config on an attribute called common"""
+
     def __init__(
         self,
         ssm_config: SsmConfig,
@@ -592,42 +619,29 @@ class PipelineConfig(SharedPipelineConfig):
         build_lambdas: bool = True,
         deploy_to_ci: bool = False,
         deploy_to_prod: bool = False,
-        service: ServiceDetails,
-        mgmt_account_id: str,
-        dev_account_id: str,
-        ci_account_id: str,
-        prod_account_id: str,
-        github: GitHubConfig,
-        pip: PipIndexConfig,
-        sonarcloud_token: str,
+        common: CommonPipelineConfig,
         **kwargs: Any,
     ):
-        # pylint:disable=too-many-locals
-        # To remove this, perhaps extract the account IDs into an Accounts object?
-        # Or group some of the other build options together in some way?
-        super().__init__(
-            ssm_config,
-            service=service,
-            mgmt_account_id=mgmt_account_id,
-            dev_account_id=dev_account_id,
-            ci_account_id=ci_account_id,
-            prod_account_id=prod_account_id,
-            github=github,
-            pip=pip,
-            sonarcloud_token=sonarcloud_token,
-            **kwargs,
-        )
+        super().__init__(ssm_config, **kwargs)
 
+        self.common = common
         self.unique_id = unique_id
         self.branch_to_build = branch_to_build if branch_to_build else Repository(".").head.shorthand
         self.deploy_to_ci = deploy_to_ci
         self.deploy_to_prod = deploy_to_prod
         self.build_lambdas = build_lambdas
 
+    @classmethod
+    def _get_subconfigs(cls) -> Dict[str, Type["PersistedConfig"]]:
+        subconfigs = super()._get_subconfigs()
+        subconfigs.update(common=CommonPipelineConfig)
+        return subconfigs
+
     def __eq__(self, other: Any) -> bool:
         return (
             isinstance(other, PipelineConfig)
             and super().__eq__(other)
+            and self.common == other.common
             and self.unique_id == other.unique_id
             and self.branch_to_build == other.branch_to_build
             and self.deploy_to_ci == other.deploy_to_ci
