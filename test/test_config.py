@@ -741,10 +741,9 @@ class PipelineConfigTest(TestCase):
 
         self.assertEqual(expected_pipeline_config, actual)
         self.assertEqual(
-            f"-c BranchToBuild={expected_branch_to_build} -c SSMNamespace={self.test_ssm_config.namespace} "
-            f"-c PipelineSSMConfigId={self.test_ssm_config.config_id} "
-            f"-c SystemSSMConfigId={self.test_ssm_config.config_id} -c DeployToCi={expected_deploy_to_ci} "
-            f"-c DeployToProd={expected_deploy_to_prod}",
+            f"-c UniqueId={expected_unique_id} -c BranchToBuild={expected_branch_to_build} "
+            f"-c SsmNamespace={self.test_ssm_config.namespace} -c SsmConfigId={self.test_ssm_config.config_id} "
+            f"-c DeployToCi={expected_deploy_to_ci} -c DeployToProd={expected_deploy_to_prod}",
             actual.pipeline_parameters,
         )
 

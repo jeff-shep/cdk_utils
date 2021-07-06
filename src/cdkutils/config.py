@@ -101,6 +101,10 @@ class AttributeNotFoundException(ConfigException):
     pass
 
 
+class SecretCreationException(ConfigException):
+    pass
+
+
 T = TypeVar("T", bound="PersistedConfig")  # pylint:disable=invalid-name
 
 
@@ -309,7 +313,15 @@ class PersistedConfig(ABC):
                 secret_string = getattr(self, mapping.attribute)
                 if secret_string:
                     name = ssm_config.get_full_path(mapping.aws_partial_path)
-                    sm_client.create_secret(Name=name, SecretString=secret_string)
+                    try:
+                        sm_client.create_secret(Name=name, SecretString=secret_string)
+                    except (
+                        sm_client.exceptions.InvalidRequestException,
+                        sm_client.exceptions.ResourceExistsException,
+                    ) as exc:
+                        msg = f"Error creating {name}: {exc}"
+                        _LOGGER.error(msg)
+                        raise SecretCreationException(msg) from exc
                     _LOGGER.info(f"Created {name} in Secret Manager")
 
         for subconfig in self._get_subconfigs():
@@ -328,10 +340,9 @@ class PersistedConfig(ABC):
                 with contextlib.suppress(
                     sm_client.exceptions.ResourceNotFoundException, sm_client.exceptions.InvalidRequestException
                 ):
-                    sm_client.delete_secret(
-                        SecretId=ssm_config.get_full_path(mapping.aws_partial_path),
-                        ForceDeleteWithoutRecovery=no_recovery,
-                    )
+                    name = ssm_config.get_full_path(mapping.aws_partial_path)
+                    sm_client.delete_secret(SecretId=name, ForceDeleteWithoutRecovery=no_recovery)
+                    _LOGGER.info(f"Deleted {name}")
 
         for subconfig in self._get_subconfigs():
             getattr(self, subconfig).delete_secrets(boto_session)
@@ -677,10 +688,10 @@ class PipelineConfig(BaseConfig):
         return " -c ".join(
             [
                 "",  # Ensures the string starts with -c
+                f"UniqueId={self.unique_id}",
                 f"BranchToBuild={self.branch_to_build}",
-                f"SSMNamespace={self.ssm.namespace}",
-                f"PipelineSSMConfigId={self.ssm.config_id}",
-                f"SystemSSMConfigId={self.ssm.config_id}",
+                f"SsmNamespace={self.ssm.namespace}",
+                f"SsmConfigId={self.ssm.config_id}",
                 f"DeployToCi={self.deploy_to_ci}",
                 f"DeployToProd={self.deploy_to_prod}",
             ]
