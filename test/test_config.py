@@ -758,3 +758,16 @@ class PipelineConfigTest(TestCase):
     def test_load_unique_id_missing(self):
         with self.assertRaises(ConfigException):
             PipelineConfig.load(self.test_ssm_config, boto3.Session(), get_mock_cdk_scope())
+
+    def test_init_unique_id_main_must_deploy_main(self):
+        """GIVEN unique_id=="main" AND branch_to_build!="main" WHEN init called THEN an exception is raised"""
+
+        with self.assertRaises(ConfigException):
+            # noinspection PyTypeChecker
+            PipelineConfig(self.test_ssm_config, unique_id="main", branch_to_build="not_main", common=None)
+
+    def test_init_main_branch_can_be_deployed_with_any_unique_id(self):
+        """GIVEN unique_id!="main" AND branch_to_build!="main" WHEN init called THEN no exception is raised"""
+
+        # noinspection PyTypeChecker
+        PipelineConfig(self.test_ssm_config, unique_id="foo", branch_to_build="main", common=None)

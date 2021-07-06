@@ -639,6 +639,9 @@ class PipelineConfig(BaseConfig):
         self.deploy_to_prod = deploy_to_prod
         self.build_lambdas = build_lambdas
 
+        if self.unique_id == "main" and self.branch_to_build != "main":
+            raise ConfigException("Pipeline with unique_id main must deploy the main branch")
+
     @classmethod
     def _get_subconfigs(cls) -> Dict[str, Type["PersistedConfig"]]:
         subconfigs = super()._get_subconfigs()
