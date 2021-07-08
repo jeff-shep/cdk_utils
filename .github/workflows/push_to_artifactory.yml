@@ -1,22 +1,25 @@
-name: Python package
+name: Publish Python Package
 
 on:
   release:
     types:
-      - released
+      - published
 
 jobs:
-  package-bg-aws-utils:
+  publish-python-package:
     runs-on: ubuntu-latest
     env:
       PIP_INDEX_URL: https://${{ secrets.PIP_INDEX_USERNAME }}:${{ secrets.PIP_INDEX_PASSWORD }}@metoffice.jfrog.io/metoffice/api/pypi/pypi/simple
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout source code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0  # Gets all branches and tags. Versioneer needs tags to correctly determine version
+
       - name: Set up Python 3.8
         uses: actions/setup-python@v2
         with:
           python-version: '3.8'
-          ref: main
 
       - name: Cache pip downloads
         uses: actions/cache@v2
@@ -30,17 +33,30 @@ jobs:
             ${{ runner.os }}-build-
             ${{ runner.os }}-
 
-      - name: Install dependencies
-        run: pip install -r requirements-dev.txt
+      - name: Setup dummy AWS credentials
+        run: |
+          mkdir -p ~/.aws
+          touch ~/.aws/credentials
+
+          echo "[default]
+          aws_access_key_id = dummy
+          aws_secret_access_key = dummy
+          region = eu-west-2" > ~/.aws/credentials
+
+      - name: Install tox
+        run: pip install -r requirements-tox.txt
         working-directory: requirements/ # In case of relative references
 
+      - name: Install dependencies
+        run: tox -e dev --devenv .venv
+
       - name: Invoke build
-        run: invoke build
+        run: . .venv/bin/activate && invoke build
 
       - name: Invoke publish
-        run: invoke publish
+        run: . .venv/bin/activate && invoke publish
         env:
           TWINE_USERNAME: ${{ secrets.PIP_INDEX_USERNAME }}
           TWINE_PASSWORD: ${{ secrets.PIP_INDEX_PASSWORD }}
-          TWINE_REPOSITORY_URL: https://metoffice.jfrog.io/metoffice/api/pypi/pypi/simple
+          TWINE_REPOSITORY_URL: https://metoffice.jfrog.io/artifactory/api/pypi/pypi
           TWINE_NON_INTERACTIVE: "True" # Value not really needed, just needs to be set
