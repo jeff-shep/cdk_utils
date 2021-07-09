@@ -39,7 +39,7 @@ jobs:
         run: pip install -r requirements-tox.txt
         working-directory: requirements/ # In case of relative references
 
-      - name: Run tests with coverage
+      - name: Setup dummy AWS credentials
         run: |
           mkdir -p ~/.aws
           touch ~/.aws/credentials
@@ -49,7 +49,8 @@ jobs:
           aws_secret_access_key = dummy
           region = eu-west-2" > ~/.aws/credentials
 
-          tox
+      - name: Run tests with coverage
+        run: tox
 
       - name: Override Coverage Source Path for Sonar
         # This is because the report is generated outside the docker container the sonarcloud action runs in,

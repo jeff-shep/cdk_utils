@@ -35,14 +35,14 @@ jobs:
             ${{ runner.os }}-build-
             ${{ runner.os }}-
 
-      - name: Install dependencies
-        run: |
-          pip install -r requirements-linting.txt
-          cd ..
-          pip install -e .
+      - name: Install tox
+        run: pip install -r requirements-tox.txt
         working-directory: requirements/ # In case of relative references
+
+      - name: Install dependencies
+        run: tox -e dev --devenv .venv
 
       - name: Run invoke linting
         env:
           LINT_CMD: ${{ matrix.lint_cmd }}
-        run: invoke $LINT_CMD
+        run: . .venv/bin/activate && invoke $LINT_CMD
