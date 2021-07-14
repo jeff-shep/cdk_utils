@@ -30,6 +30,9 @@ DATA_STALE_TWICE = [{"metric": TEST_METRIC, "values": [1, 1, 0, 0, 0, 1, 0, 0, 0
 DATA_STALE_TWICE_RESULT = CloudWatchAlarmSimulator.make_simulation_result(length=12, alarm=[4, 8])
 DATA_NEVER_STALE = [{"metric": TEST_METRIC, "values": [1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0]}]
 DATA_NEVER_STALE_RESULT = CloudWatchAlarmSimulator.make_simulation_result(length=12, alarm=[])
+DATA_MISSING_VALUES = [{"metric": TEST_METRIC, "values": [1, 1, 0, 1, None, 0, 0, None, 0, 1, 1, 0]}]
+DATA_MISSING_VALUES_RESULT = CloudWatchAlarmSimulator.make_simulation_result(length=12, alarm=[6, 7, 8])
+DATA_TWO_METRICS = [DATA_WRONG_METRIC[0], {"metric": TEST_METRIC, "values": [1, 1, 0, 0, 0, 1]}]
 
 
 class CloudWatchAlarmSimulatorTestBase(unittest.TestCase):
@@ -51,6 +54,8 @@ class TestStaleDataAlarmSimulator(CloudWatchAlarmSimulatorTestBase):
             (STALE_DATA_ALARM_DEFINITION, DATA_WRONG_METRIC, DATA_WRONG_METRIC_RESULT),
             (STALE_DATA_ALARM_DEFINITION, DATA_STALE_TWICE, DATA_STALE_TWICE_RESULT),
             (STALE_DATA_ALARM_DEFINITION, DATA_NEVER_STALE, DATA_NEVER_STALE_RESULT),
+            (STALE_DATA_ALARM_DEFINITION, DATA_MISSING_VALUES, DATA_MISSING_VALUES_RESULT),
+            (STALE_DATA_ALARM_DEFINITION, DATA_TWO_METRICS, DATA_STALE_AFTER_5_PERIODS_RESULT),
         ]
     )
     def test_definition_with_metrics(self, alarm_definition, metrics, expected_result):

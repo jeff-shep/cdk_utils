@@ -5,6 +5,19 @@ from aws_cdk import aws_cloudwatch
 ALARM_STATE_OK = "OK"
 ALARM_STATE_ALARM = "ALARM"
 
+BREACHING_RULES = [
+    lambda defn, metric: defn.treat_missing_data == aws_cloudwatch.TreatMissingData.BREACHING and metric is None,
+    lambda defn, metric: defn.comparison_operator == aws_cloudwatch.ComparisonOperator.LESS_THAN_THRESHOLD
+    and metric < defn.threshold,
+    lambda defn, metric: defn.comparison_operator == aws_cloudwatch.ComparisonOperator.LESS_THAN_OR_EQUAL_TO_THRESHOLD
+    and metric <= defn.threshold,
+    lambda defn, metric: defn.comparison_operator
+    == aws_cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD
+    and metric >= defn.threshold,
+    lambda defn, metric: defn.comparison_operator == aws_cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD
+    and metric > defn.threshold,
+]
+
 
 class MetricException(Exception):
     pass
@@ -28,13 +41,9 @@ class CloudWatchAlarmSimulator:
         return ALARM_STATE_OK
 
     def check_breaching(self, metric: float) -> bool:
-        if self.alarm_definition.treat_missing_data == aws_cloudwatch.TreatMissingData.BREACHING and metric is None:
-            return True
-        if (
-            self.alarm_definition.comparison_operator == aws_cloudwatch.ComparisonOperator.LESS_THAN_THRESHOLD
-            and metric < self.alarm_definition.threshold
-        ):
-            return True
+        for rule in BREACHING_RULES:
+            if rule(self.alarm_definition, metric):  # type: ignore
+                return True
         return False
 
     @staticmethod
