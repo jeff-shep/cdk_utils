@@ -385,7 +385,7 @@ class ServiceDetails(PersistedConfig):
             and self.cost_code == other.cost_code
         )
 
-    def apply_tags_to(self, scope: cdk.Construct) -> None:
+    def apply_tags_to(self, scope: cdk.IConstruct) -> None:
         """Apply Tags using this instance's values"""
         tag_scope = cdk.Tags.of(scope)
         for tag_name, tag_value in [

@@ -237,7 +237,7 @@ class ServiceDetailsTest(TestCase):
         WHEN load is called
         THEN a new instance is returned with values from AWS SSM and SecretsManager
         """
-        ssm: SSMClient = boto3.client("ssm")
+        ssm: SSMClient = boto3.client("ssm", region_name="eu-west-2")
 
         expected_name = "Test Service"
         expected_name_ssm_path = self.test_ssm_config.get_full_path("service/name")
@@ -251,7 +251,7 @@ class ServiceDetailsTest(TestCase):
         expected_cost_code_ssm_path = self.test_ssm_config.get_full_path("service/cost_code")
         ssm.put_parameter(Name=expected_cost_code_ssm_path, Value=expected_cost_code)
 
-        actual = ServiceDetails.load(self.test_ssm_config, boto3.Session())
+        actual = ServiceDetails.load(self.test_ssm_config, boto3.Session(region_name="eu-west-2"))
 
         self.assertEqual(expected_name, actual.name)
         self.assertEqual(expected_name_ssm_path, actual.get_ssm_param_name("name", self.test_ssm_config))
@@ -271,7 +271,7 @@ class ServiceDetailsTest(TestCase):
         THEN a new instance is returned with values from cdk_scope
         AND values from SSM/Secrets Manager where cdk_scope doesn't have a context variable value
         """
-        ssm: SSMClient = boto3.client("ssm")
+        ssm: SSMClient = boto3.client("ssm", region_name="eu-west-2")
 
         expected_name = "Test Service"
         expected_name_ssm_path = self.test_ssm_config.get_full_path("service/name")
@@ -286,7 +286,7 @@ class ServiceDetailsTest(TestCase):
         ssm.put_parameter(Name=expected_cost_code_ssm_path, Value=expected_cost_code)
 
         cdk_scope = get_mock_cdk_scope(service_name=expected_name, service_owner=expected_owner)
-        actual = ServiceDetails.load(self.test_ssm_config, boto3.Session(), cdk_scope)
+        actual = ServiceDetails.load(self.test_ssm_config, boto3.Session(region_name="eu-west-2"), cdk_scope)
 
         self.assertEqual(expected_name, actual.name)
         self.assertEqual(expected_name_ssm_path, actual.get_ssm_param_name("name", self.test_ssm_config))
@@ -462,8 +462,8 @@ class GitHubConfigTest(TestCase):
         WHEN load is called
         THEN a new instance is returned with values from AWS SSM and SecretsManager
         """
-        ssm: SSMClient = boto3.client("ssm")
-        secrets_mgr: SecretsManagerClient = boto3.client("secretsmanager")
+        ssm: SSMClient = boto3.client("ssm", region_name="eu-west-2")
+        secrets_mgr: SecretsManagerClient = boto3.client("secretsmanager", region_name="eu-west-2")
 
         expected_repo = "cdk_utils"
         expected_repo_ssm_path = self.test_ssm_config.get_full_path("pipeline/github/repository")
@@ -477,7 +477,7 @@ class GitHubConfigTest(TestCase):
         expected_oauth_token_ssm_path = self.test_ssm_config.get_full_path("pipeline/github/oauth_token")
         secrets_mgr.create_secret(Name=expected_oauth_token_ssm_path, SecretString=expected_oauth_token)
 
-        actual = GitHubConfig.load(self.test_ssm_config, boto3.Session())
+        actual = GitHubConfig.load(self.test_ssm_config, boto3.Session(region_name="eu-west-2"))
 
         self.assertEqual(expected_repo, actual.repo)
         self.assertEqual(expected_repo_ssm_path, actual.get_ssm_param_name("repo", self.test_ssm_config))
@@ -523,7 +523,7 @@ class PipIndexConfigTest(TestCase):
         """
 
         with self.assertRaises(AttributeNotFoundException):
-            PipIndexConfig.load(self.test_ssm_config, boto3.Session())
+            PipIndexConfig.load(self.test_ssm_config, boto3.Session(region_name="eu-west-2"))
 
     def test_credentials(self):
         """
@@ -563,8 +563,8 @@ class PipIndexConfigTest(TestCase):
         This test is particularly interested in the handling of the property, because the credentials property is
         derived from the other attributes, not loaded from AWS or CDK (although it is written to AWS)
         """
-        ssm: SSMClient = boto3.client("ssm")
-        secret_mgr: SecretsManagerClient = boto3.client("secretsmanager")
+        ssm: SSMClient = boto3.client("ssm", region_name="eu-west-2")
+        secret_mgr: SecretsManagerClient = boto3.client("secretsmanager", region_name="eu-west-2")
 
         expected_username = "foo@metoffice.gov.uk"
         ssm.put_parameter(
@@ -587,7 +587,7 @@ class PipIndexConfigTest(TestCase):
         )  # This Secret should be ignored by the load method
 
         expected = PipIndexConfig(self.test_ssm_config, expected_username, expected_pass)
-        actual = PipIndexConfig.load(self.test_ssm_config, boto3.Session())
+        actual = PipIndexConfig.load(self.test_ssm_config, boto3.Session(region_name="eu-west-2"))
 
         self.assertEqual(expected.credentials, actual.credentials)
 
@@ -625,9 +625,9 @@ class PipIndexConfigTest(TestCase):
         test_pass = "this_is_the_password"
         pip_conf = PipIndexConfig(self.test_ssm_config, test_username, test_pass)
 
-        pip_conf.create_secrets(boto3.Session())
+        pip_conf.create_secrets(boto3.Session(region_name="eu-west-2"))
 
-        secrets_mgr: SecretsManagerClient = boto3.client("secretsmanager")
+        secrets_mgr: SecretsManagerClient = boto3.client("secretsmanager", region_name="eu-west-2")
         self.assertEqual(
             pip_conf.credentials,
             secrets_mgr.get_secret_value(SecretId=pip_conf.get_secret_name("credentials"))["SecretString"],
@@ -651,11 +651,11 @@ class PipIndexConfigTest(TestCase):
         credentials_secret_name = pip_conf.get_secret_name("credentials")
         password_secret_name = pip_conf.get_secret_name("password")
 
-        secrets_mgr: SecretsManagerClient = boto3.client("secretsmanager")
+        secrets_mgr: SecretsManagerClient = boto3.client("secretsmanager", region_name="eu-west-2")
         secrets_mgr.create_secret(Name=credentials_secret_name, SecretString=pip_conf.credentials)
         secrets_mgr.create_secret(Name=password_secret_name, SecretString=pip_conf.password)
 
-        pip_conf.delete_secrets(boto3.Session())
+        pip_conf.delete_secrets(boto3.Session(region_name="eu-west-2"))
 
         # InvalidRequestException for secrets that have been marked deleted, but not yet deleted
         with self.assertRaises(secrets_mgr.exceptions.InvalidRequestException):
@@ -737,7 +737,7 @@ class PipelineConfigTest(TestCase):
             sonarcloud_token=expected_sonarcloud_token,
         )
 
-        actual = PipelineConfig.load(self.test_ssm_config, boto3.Session(), mock_cdk_scope)
+        actual = PipelineConfig.load(self.test_ssm_config, boto3.Session(region_name="eu-west-2"), mock_cdk_scope)
 
         self.assertEqual(expected_pipeline_config, actual)
         self.assertEqual(
