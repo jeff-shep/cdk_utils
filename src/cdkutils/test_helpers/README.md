@@ -34,3 +34,19 @@ alarm_states = cloudwatch_alarm_simulator.run_simulation([alerting_metrics])
 expected_alarm_states = CloudWatchAlarmSimulator.make_simulation_result(len(alerting_metric_values), list(range(first_alert_expected, no_files_first_end)) + list(range(second_alert_expected, no_files_second_end)))
 self.assertEqual(alarm_states, expected_alarm_states)
 ```
+
+The result of a simulation looks like this:
+```
+{
+    1: 'OK',
+    2: 'ALARM',
+    3: 'ALARM',
+    ...
+}
+```
+
+The convenience static method 
+```
+CloudWatchAlarmSimulator.make_simulation_result(length, alarm)
+```
+produces a dict in this format of length {length} with 'ALARM' states at the indices provides in the list {alarm} and all other indices 'OK'
