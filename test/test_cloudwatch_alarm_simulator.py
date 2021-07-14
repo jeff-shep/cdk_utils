@@ -3,7 +3,7 @@ import unittest
 from aws_cdk import aws_cloudwatch, core
 from parameterized import parameterized
 
-from cdkutils.test_helpers import CloudWatchAlarmSimulator
+from cdkutils.test_helpers import CloudWatchAlarmSimulator, MetricException
 
 TEST_METRIC = aws_cloudwatch.Metric(
     metric_name="PutRequests",
@@ -25,7 +25,7 @@ STALE_DATA_ALARM_DEFINITION = aws_cloudwatch.AlarmProps(
 DATA_STALE_AFTER_5_PERIODS = [{"metric": TEST_METRIC, "values": [1, 1, 0, 0, 0, 1]}]
 DATA_STALE_AFTER_5_PERIODS_RESULT = CloudWatchAlarmSimulator.make_simulation_result(length=6, alarm=[4])
 DATA_WRONG_METRIC = [{"metric": aws_cloudwatch.Metric(metric_name="bad_metric", namespace="bad"), "values": [1, 1, 1]}]
-DATA_WRONG_METRIC_RESULT = Exception(f"Metric {TEST_METRIC} not found!")
+DATA_WRONG_METRIC_RESULT = MetricException(f"Metric {TEST_METRIC} not found!")
 DATA_STALE_TWICE = [{"metric": TEST_METRIC, "values": [1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0]}]
 DATA_STALE_TWICE_RESULT = CloudWatchAlarmSimulator.make_simulation_result(length=12, alarm=[4, 8])
 DATA_NEVER_STALE = [{"metric": TEST_METRIC, "values": [1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0]}]

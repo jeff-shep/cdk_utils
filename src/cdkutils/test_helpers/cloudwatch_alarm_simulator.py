@@ -6,6 +6,10 @@ ALARM_STATE_OK = "OK"
 ALARM_STATE_ALARM = "ALARM"
 
 
+class MetricException(Exception):
+    pass
+
+
 class CloudWatchAlarmSimulator:
     def __init__(self, alarm_definition: aws_cloudwatch.AlarmProps):
         self.alarm_definition = alarm_definition
@@ -14,7 +18,7 @@ class CloudWatchAlarmSimulator:
         for metric in metrics:
             if metric["metric"] == self.alarm_definition.metric:
                 return {i: self.check_evaluation_period(i, metric["values"]) for i in range(len(metric["values"]))}
-        raise Exception(f"Metric {self.alarm_definition.metric} not found!")
+        raise MetricException(f"Metric {self.alarm_definition.metric} not found!")
 
     def check_evaluation_period(self, period: int, metric_values: List[float]) -> str:
         evaluation_periods = int(self.alarm_definition.evaluation_periods)

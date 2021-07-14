@@ -1,1 +1,1 @@
-from .cloudwatch_alarm_simulator import CloudWatchAlarmSimulator
+from .cloudwatch_alarm_simulator import CloudWatchAlarmSimulator, MetricException
