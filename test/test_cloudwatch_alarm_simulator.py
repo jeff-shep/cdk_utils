@@ -5,7 +5,6 @@ from parameterized import parameterized
 
 from cdkutils.test_helpers import CloudWatchAlarmSimulator
 
-TEST_APP = core.Stack()
 TEST_METRIC = aws_cloudwatch.Metric(
     metric_name="PutRequests",
     namespace="AWS/S3",
