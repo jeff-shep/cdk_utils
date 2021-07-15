@@ -24,7 +24,7 @@ class MetricException(Exception):
 
 
 class CloudWatchAlarmSimulator:
-    def __init__(self, alarm_definition: aws_cloudwatch.AlarmProps):
+    def __init__(self, alarm_definition: aws_cloudwatch.AlarmProps) -> None:
         self.alarm_definition = alarm_definition
 
     def run_simulation(self, metrics: List[Dict[str, Any]]) -> Dict[int, str]:
@@ -48,4 +48,4 @@ class CloudWatchAlarmSimulator:
 
     @staticmethod
     def make_simulation_result(length: int, alarm: List[int]) -> Dict[int, str]:
-        return {i: "ALARM" if i in alarm else "OK" for i in range(length)}
+        return {i: ALARM_STATE_ALARM if i in alarm else ALARM_STATE_OK for i in range(length)}
