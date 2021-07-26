@@ -157,3 +157,7 @@ i.e. they implement the abstract methods defined on `PersistedConfig`
 
 The `PersistedConfig.load` method can also be overidden to provide custom behaviour, such as is done in 
 `PipelineConfig.load()`
+
+# Cleanup Lambda Notes
+
+To work on the cleanup lambda you can deploy the stacks as described above with a unique id specified in the SsmConfigId.
