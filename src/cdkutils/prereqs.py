@@ -66,7 +66,7 @@ class CleanupDeployStack(cdk.Stack):
         self.lambda_permissions = CfnPermission(
             self,
             "CleanupLambdaPermission",
-            function_name=self._get_lambda_name(config_id),
+            function_name=self._get_lambda_name(),
             action="lambda:InvokeFunction",
             principal=self.cfn_execution_role,
         )
