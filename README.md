@@ -3,12 +3,13 @@ Transport tribe library for common CDK components
 
 ## Project installation
 
-Before installing, make sure you use pip and are connected to artifactory:
+Ensure you have run through the setup to connect pip to [Artifactory](https://metoffice.sharepoint.com/sites/TechnologyCommsSite/SitePages/Tooling/Artifactory/Authenticating-Python-with-Artifactory.aspx)
+
+Install and activate the virtualenv
 ```bash
 pip install virtualenv
 virtualenv .env
-".env/Scripts/activate"
-pip config --venv set global.extra-index-url https://username:password@metoffice.jfrog.io/metoffice/api/pypi/python-local/simple
+source .env/Scripts/activate
 ```
 
 If you want to use cdk_utils in your project, install with the following command:
