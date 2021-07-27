@@ -292,7 +292,8 @@ class PersistedConfig(ABC):
     @final
     def create_secrets(self, boto_session: boto3.Session, ssm_config_override: Optional[SsmConfig] = None) -> None:
         """
-        Create the secret if it doesn't exists. If the secret does exist, and the new value differs from the current,
+        Create the secret if it doesn't exist.
+        If the secret does exist, and the new value differs from the current,
         update the existing secret.
         """
         ssm_config = ssm_config_override if ssm_config_override else self.ssm
