@@ -25,10 +25,10 @@ _LOGGER = logging.getLogger(__name__)
 class SsmConfig:
     """Represents SSM config details"""
 
-    namespace: Optional[str]
-    config_id: Optional[str]
-    org_name: Optional[str]
-    cdk_scope: Optional[cdk.Construct]
+    namespace: Optional[str] = None,
+    config_id: Optional[str] = None,
+    org_name: Optional[str] = None,
+    cdk_scope: Optional[cdk.Construct] = None
 
     if namespace is None and cdk_scope:
         namespace = cdk_scope.node.try_get_context("SsmNamespace")
