@@ -8,16 +8,15 @@ from aws_cdk.aws_ssm import StringParameter
 from moto import mock_secretsmanager, mock_ssm
 
 from cdkutils.config import (
-    ConfigException,
-    SsmConfig,
-    PipelineConfig,
-    CommonPipelineConfig,
     AccountIdConfig,
+    CommonPipelineConfig,
+    ConfigException,
     GitHubConfig,
+    PipelineConfig,
     PipIndexConfig,
     ServiceDetails,
+    SsmConfig,
 )
-from cdkutils.persistent_config import PersistedAttribute
 from cdkutils.errors import AttributeNotFoundException
 
 if TYPE_CHECKING:

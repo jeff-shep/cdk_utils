@@ -1,65 +1,12 @@
 from abc import ABC
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, Dict, List, Optional, Type
 
 import boto3
-from aws_cdk import aws_ssm as ssm
 from aws_cdk import core as cdk
 from pygit2 import Repository
 
-from cdkutils.persistent_config import PersistedAttribute, PersistedConfig
 from cdkutils.errors import ConfigException
-
-
-class SsmConfig:
-    """Represents SSM config details"""
-
-    def __init__(
-        self,
-        namespace: Optional[str] = None,
-        config_id: Optional[str] = None,
-        org_name: Optional[str] = None,
-        cdk_scope: Optional[cdk.Construct] = None,
-    ) -> None:
-
-        if namespace is None and cdk_scope:
-            namespace = cdk_scope.node.try_get_context("SsmNamespace")
-
-        if namespace is None:  # i.e. if namespace is *still* None
-            raise ValueError("a namespace must be provided, either via a parameter or CDK context variable")
-        self.namespace = namespace
-
-        if cdk_scope is not None and config_id is None:
-            config_id = cdk_scope.node.try_get_context("SsmConfigId")
-        self.config_id = "default" if config_id is None else config_id
-
-        if cdk_scope is not None and org_name is None:
-            org_name = cdk_scope.node.try_get_context("SsmConfigOrg")
-        self.org_name = "metoffice" if org_name is None else org_name
-
-    def __eq__(self, other: Any) -> bool:
-        return (
-            isinstance(other, SsmConfig)
-            and self.config_id == other.config_id
-            and self.org_name == other.org_name
-            and self.namespace == other.namespace
-        )
-
-    def __repr__(self) -> str:
-        return f"SsmConfig({self.namespace!r}, {self.config_id!r}, {self.org_name!r})"
-
-    def __str__(self) -> str:
-        return self.path_prefix
-
-    @property
-    def path_prefix(self) -> str:
-        """Return the path prefix common to all config entries relating to this config"""
-        return f"/{self.org_name}/{self.namespace}/{self.config_id}"
-
-    def get_full_path(self, partial_path: str) -> str:
-        """
-        Return full SSM path for the given partial_path, which is the same as prepending the path_prefix to partial_path
-        """
-        return f"{self.path_prefix}/{partial_path}"
+from cdkutils.persistent_config import PersistedAttribute, PersistedConfig, SsmConfig
 
 
 class ServiceDetails(PersistedConfig):

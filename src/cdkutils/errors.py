@@ -1,5 +1,6 @@
 """Contains all custom exception handlers relating to the config classes"""
 
+
 class ConfigException(Exception):
     pass
 

@@ -2,6 +2,13 @@
 requires = ["setuptools >= 40.9.0", "wheel", "versioneer-518"]
 build-backend = "setuptools.build_meta"
 
+[tool.isort]
+profile = "black"
+src_paths = ["isort"]
+
+[tool.black]
+line-length = 120
+
 [tool.pytest.ini_options]
 # Configuration options docs: https://docs.pytest.org/en/stable/reference.html#ini-options-ref
 # Interested in how pytest locates its config and decides where to look for tests?
