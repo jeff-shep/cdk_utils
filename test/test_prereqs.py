@@ -72,6 +72,7 @@ class CleanupDeployStackTest(TestCase):
         self.assertEqual("CleanupStack-test", test_stack.stack_name)
         self.assertEqual("eu-west-2", test_stack._get_region())
         self.assertEqual("hnb659fds", test_stack.default_qualifier)
+        self.assertEqual("cleanuplambda-test-eu-west-2", test_stack._get_lambda_name())
         self.assertEqual("cleanuplambda-test-eu-west-1", test_stack._get_lambda_name("eu-west-1"))
         self.assertEqual(
             f"arn:aws:iam::test:role/cdk-hnb659fds-cfn-exec-role-test-eu-west-2", test_stack.cfn_execution_role
