@@ -21,31 +21,29 @@ else:
 _LOGGER = logging.getLogger(__name__)
 
 
+@dataclass
 class SsmConfig:
     """Represents SSM config details"""
 
-    def __init__(
-        self,
-        namespace: Optional[str] = None,
-        config_id: Optional[str] = None,
-        org_name: Optional[str] = None,
-        cdk_scope: Optional[cdk.Construct] = None,
-    ) -> None:
+    namespace: Optional[str]
+    config_id: Optional[str]
+    org_name: Optional[str]
+    cdk_scope: Optional[cdk.Construct]
 
-        if namespace is None and cdk_scope:
-            namespace = cdk_scope.node.try_get_context("SsmNamespace")
+    if namespace is None and cdk_scope:
+        namespace = cdk_scope.node.try_get_context("SsmNamespace")
 
-        if namespace is None:  # i.e. if namespace is *still* None
-            raise ValueError("a namespace must be provided, either via a parameter or CDK context variable")
-        self.namespace = namespace
+    if namespace is None:  # i.e. if namespace is *still* None
+        raise ValueError("a namespace must be provided, either via a parameter or CDK context variable")
+    self.namespace = namespace
 
-        if cdk_scope is not None and config_id is None:
-            config_id = cdk_scope.node.try_get_context("SsmConfigId")
-        self.config_id = "default" if config_id is None else config_id
+    if cdk_scope is not None and config_id is None:
+        config_id = cdk_scope.node.try_get_context("SsmConfigId")
+    self.config_id = "default" if config_id is None else config_id
 
-        if cdk_scope is not None and org_name is None:
-            org_name = cdk_scope.node.try_get_context("SsmConfigOrg")
-        self.org_name = "metoffice" if org_name is None else org_name
+    if cdk_scope is not None and org_name is None:
+        org_name = cdk_scope.node.try_get_context("SsmConfigOrg")
+    self.org_name = "metoffice" if org_name is None else org_name
 
     def __eq__(self, other: Any) -> bool:
         return (
