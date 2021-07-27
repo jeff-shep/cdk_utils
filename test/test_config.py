@@ -18,6 +18,7 @@ from cdkutils.config import (
     SsmConfig,
 )
 from cdkutils.errors import AttributeNotFoundException
+from cdkutils.persistent_config import PersistedAttribute
 
 if TYPE_CHECKING:
     from mypy_boto3_secretsmanager.client import SecretsManagerClient
