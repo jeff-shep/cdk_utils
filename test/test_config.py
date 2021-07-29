@@ -652,15 +652,13 @@ class PipIndexConfigTest(TestCase):
         test_username = "foo@metoffice.gov.uk"
         test_password = "this_is_the_password"
 
-        sm_client = boto3.client("secretsmanager", region_name="eu-west-2")
-        sm_client.create_secret(Name=test_username, SecretString=test_password)
+        secrets_mgr: SecretsManagerClient = boto3.client("secretsmanager", region_name="eu-west-2")
+        secrets_mgr.create_secret(Name=test_username, SecretString=test_password)
 
         test_new_password = "new_password"
 
         pip_conf = PipIndexConfig(self.test_ssm_config, test_username, test_new_password)
         pip_conf.create_secrets(boto3.Session(region_name="eu-west-2"))
-
-        secrets_mgr: SecretsManagerClient = boto3.client("secretsmanager", region_name="eu-west-2")
 
         self.assertEqual(
             pip_conf.password,
