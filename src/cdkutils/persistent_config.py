@@ -315,7 +315,7 @@ class PersistedConfig(ABC):
                         sm_client.create_secret(Name=name, SecretString=secret_string)
                         _LOGGER.info(f"Created {name} in Secret Manager")
 
-                    if response:
+                    if response is not None:
                         # Secret exists, check if the value needs to be updated
                         if response != secret_string:
                             self.update_existing_secret(name, secret_string, sm_client)
