@@ -17,6 +17,10 @@ If you want to use cdk_utils in your project, install with the following command
 pip install cdkutils
 ```
 
+### Pre-commit hooks
+Install pre-commit hooks (which utilizes invoke via bginvoketasks) `pre-commit install`
+
+
 # Dev environment
 You can create a dev virtualenv by running `tox -e dev --devenv .venv` from the repo's root folder
 
