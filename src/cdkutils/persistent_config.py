@@ -315,6 +315,15 @@ class PersistedConfig(ABC):
                         sm_client.create_secret(Name=name, SecretString=secret_string)
                         _LOGGER.info(f"Created {name} in Secret Manager")
 
+                    except (
+                        sm_client.exceptions.InvalidRequestException,
+                        sm_client.exceptions.InvalidParameterException,
+                        sm_client.exceptions.LimitExceededException,
+                    ) as exc:
+                        msg = f"Error creating {name}: {exc}"
+                        _LOGGER.error(msg)
+                        raise SecretCreationException(msg) from exc
+
                     if response is not None:
                         # Secret exists, check if the value needs to be updated
                         if response != secret_string:
@@ -336,7 +345,7 @@ class PersistedConfig(ABC):
             sm_client.exceptions.InvalidParameterException,
             sm_client.exceptions.LimitExceededException,
         ) as exc:
-            msg = f"Error creating {name}: {exc}"
+            msg = f"Error updating {name}: {exc}"
             _LOGGER.error(msg)
             raise SecretCreationException(msg) from exc
 
