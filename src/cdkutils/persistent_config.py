@@ -306,8 +306,8 @@ class PersistedConfig(ABC):
                     response = None
                     name = ssm_config.get_full_path(mapping.aws_partial_path)
 
-                    # Determine if the secret exists, if it does, return it's value
                     try:
+                        # Determine if the secret exists, if it does, return it's value
                         response = sm_client.get_secret_value(SecretId=name)["SecretString"]
 
                     # Secret doesn't exist and so we create a new one
