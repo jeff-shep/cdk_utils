@@ -185,27 +185,26 @@ class AccountIdConfig(PersistedConfig):
         self,
         ssm_config: SsmConfig,
         *,
-        mgmt: str,
-        dev: str,
-        ci: str,  # pylint:disable=invalid-name
-        prod: str,
+        mgmt_acct_id: str,
+        dev_acct_id: str,
+        ci_acct_id: str,
+        prod_acct_id: str,
         **kwargs: Any,
     ) -> None:
         super().__init__(ssm_config, **kwargs)
-        self.mgmt = mgmt
-        self.dev = dev
-        # pylint moans because it's too short, but I can't think of a better one that's longer
-        self.ci = ci  # pylint:disable=invalid-name
-        self.prod = prod
+        self.mgmt_acct_id = mgmt_acct_id
+        self.dev_acct_id = dev_acct_id
+        self.ci_acct_id = ci_acct_id
+        self.prod_acct_id = prod_acct_id
 
     def __eq__(self, other: Any) -> bool:
         return (
             isinstance(other, AccountIdConfig)
             and super().__eq__(other)
-            and self.mgmt == other.mgmt
-            and self.dev == other.dev
-            and self.ci == other.ci
-            and self.prod == other.prod
+            and self.mgmt_acct_id == other.mgmt_acct_id
+            and self.dev_acct_id == other.dev_acct_id
+            and self.ci_acct_id == other.ci_acct_id
+            and self.prod_acct_id == other.prod_acct_id
         )
 
     @classmethod

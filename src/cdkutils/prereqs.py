@@ -42,7 +42,7 @@ class CleanupDeployStack(cdk.Stack):
         self.config_id = config_id
         self.default_qualifier = cdk.DefaultStackSynthesizer.DEFAULT_QUALIFIER
         self.scope = scope
-        self.dev_account_id = pipeline_config.account_ids.dev
+        self.dev_account_id = pipeline_config.account_ids.dev_acct_id
         cleanup_id = f"arn:aws:serverlessrepo:{self._get_region()}:{self.SAR_ACCOUNT_NUMBER}:applications/StackCleanup"
         location = CfnApplication.ApplicationLocationProperty(
             application_id=cleanup_id,

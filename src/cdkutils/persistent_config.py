@@ -9,7 +9,7 @@ import boto3
 from aws_cdk import aws_ssm as ssm
 from aws_cdk import core as cdk
 
-from cdkutils.errors import AttributeNotFoundException, SecretCreationException
+from cdkutils.errors import AttributeNotFoundException, SecretsManagerException
 
 if TYPE_CHECKING:
     from mypy_boto3_secretsmanager.client import SecretsManagerClient
@@ -322,7 +322,7 @@ class PersistedConfig(ABC):
                     ) as exc:
                         msg = f"Error creating {name}: {exc}"
                         _LOGGER.error(msg)
-                        raise SecretCreationException(msg) from exc
+                        raise SecretsManagerException(msg) from exc
 
                     if response is not None:
                         # Secret exists, check if the value needs to be updated
@@ -347,7 +347,7 @@ class PersistedConfig(ABC):
         ) as exc:
             msg = f"Error updating {name}: {exc}"
             _LOGGER.error(msg)
-            raise SecretCreationException(msg) from exc
+            raise SecretsManagerException(msg) from exc
 
     @final
     def delete_secrets(

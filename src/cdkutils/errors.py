@@ -9,5 +9,5 @@ class AttributeNotFoundException(ConfigException):
     pass
 
 
-class SecretCreationException(ConfigException):
+class SecretsManagerException(ConfigException):
     pass
