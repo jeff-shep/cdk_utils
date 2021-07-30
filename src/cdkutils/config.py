@@ -214,10 +214,10 @@ class AccountIdConfig(PersistedConfig):
     @classmethod
     def _get_persisted_attributes(cls) -> List[PersistedAttribute]:
         return super()._get_persisted_attributes() + [
-            PersistedAttribute("mgmt", "MgmtAccountId", "pipeline/account_id/mgmt"),
-            PersistedAttribute("dev", "DevAccountId", "pipeline/account_id/dev"),
-            PersistedAttribute("ci", "CiAccountId", "pipeline/account_id/ci"),
-            PersistedAttribute("prod", "ProdAccountId", "pipeline/account_id/prod"),
+            PersistedAttribute("mgmt_acct_id", "MgmtAccountId", "pipeline/account_id/mgmt"),
+            PersistedAttribute("dev_acct_id", "DevAccountId", "pipeline/account_id/dev"),
+            PersistedAttribute("ci_acct_id", "CiAccountId", "pipeline/account_id/ci"),
+            PersistedAttribute("prod_acct_id", "ProdAccountId", "pipeline/account_id/prod"),
         ]
 
 
