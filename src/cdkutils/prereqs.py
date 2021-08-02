@@ -4,6 +4,8 @@ import aws_cdk.core as cdk
 import boto3
 from aws_cdk.aws_lambda import CfnPermission
 from aws_cdk.aws_sam import CfnApplication
+from aws_cdk.aws_sns import Topic, TopicPolicy
+from aws_cdk.aws_codepipeline
 
 from cdkutils.config import BaseConfig, CommonPipelineConfig
 
@@ -86,3 +88,26 @@ class CleanupDeployStack(cdk.Stack):
         if cleanup_region is None:
             raise ValueError("the CleanupRegion must be provided, either via a parameter or CDK context variable")
         return cleanup_region
+
+class CodePipelineEventsNotificationStack(cdk.Stack):
+    def __init__(
+        self,
+        scope: cdk.Construct,
+        construct_id: str,
+        pipeline_config: CommonPipelineConfig,
+        config_id: str,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(scope, construct_id, **kwargs)
+        self.config_id = config_id
+        self.default_qualifier = cdk.DefaultStackSynthesizer.DEFAULT_QUALIFIER
+        
+        Topic(self, "CodePipelineEventsNotificationTopic",
+            display_name="${SSMNamespace}-${SSMConfigId}-events-notification",
+            topic_name="${SSMNamespace}-${SSMConfigId}-events-notification",
+            tags='tags from pipeline config'
+        )
+
+        TopicPolicy()
+
+        PipelineEventsRule
