@@ -10,6 +10,8 @@ standard way.
     * `mypy` (https://mypy.readthedocs.io/en/stable/)
     * `pylint` (https://pylint.pycqa.org/en/latest/)
     * `checkov` (https://www.checkov.io/documentation)
+    * `safety` (https://pyup.io/safety/)
+    * `pip-licenses` (https://github.com/raimon49/pip-licenses/blob/master/README.md)
     * SonarCloud (https://sonarcloud.io/) for collecting quality statistics
 * workflow & builds:
     * GitHub Actions (https://docs.github.com/en/actions) to do as much of our builds as possible
