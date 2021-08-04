@@ -1,0 +1,42 @@
+name: Create Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0  # Gets all branches and tags. Versioneer needs tags to correctly determine version
+
+      - name: Git Version
+        id: git_version
+        uses: codacy/git-version@2.2.0
+        with:
+          release-branch: main
+          minor-identifier: minor
+          major-identifier: major
+
+      - name: Trim Output Version
+        id: trim_output_version
+        env:
+          FULL_VERSION: ${{ steps.git_version.outputs.Version }}
+        run: |
+          echo ::set-output name=VERSION::${FULL_VERSION%%-*}
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.REPO_TOKEN }}  # This must be a PAT in order to trigger additional workflows
+          VERSION: ${{ steps.trim_output_version.outputs.VERSION }}
+        with:
+          tag_name: ${{ env.VERSION }}
+          release_name: Release v${{ env.VERSION }}
+          draft: false
+          prerelease: false
