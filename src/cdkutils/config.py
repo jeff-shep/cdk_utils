@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional, Type
 
 import boto3
 from aws_cdk import core as cdk
-from pygit2 import Repository
+from git import Repo
 
 from cdkutils.errors import ConfigException
 from cdkutils.persistent_config import PersistedAttribute, PersistedConfig, SsmConfig
@@ -293,7 +293,9 @@ class PipelineConfig(BaseConfig):
 
         self.common = common
         self.unique_id = unique_id
-        self.branch_to_build = branch_to_build if branch_to_build else Repository(".").head.shorthand
+        self.branch_to_build = (
+            branch_to_build if branch_to_build else Repo(search_parent_directories=True).active_branch.name
+        )
         self.deploy_to_ci = deploy_to_ci
         self.deploy_to_prod = deploy_to_prod
         self.build_lambdas = build_lambdas

@@ -10,7 +10,7 @@ jobs:
       matrix:
         # If you add new lint commands here, you must also update the repo's branch protection settings so that check is
         # marked as required
-        lint_cmd: [isort, black, pylint, mypy]
+        lint_cmd: [isort, black, pylint, mypy, safety, licencing]
     env:
       PIP_INDEX_URL: https://${{ secrets.PIP_INDEX_URL_USERNAME_AND_ACCESS_TOKEN }}@metoffice.jfrog.io/metoffice/api/pypi/pypi/simple
     steps:

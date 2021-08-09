@@ -795,3 +795,10 @@ class PipelineConfigTest(TestCase):
 
         # noinspection PyTypeChecker
         PipelineConfig(self.test_ssm_config, unique_id="foo", branch_to_build="main", common=None)
+
+    def test_current_git_branch_found_if_branch_to_build_is_not_set(self):
+        """GIVEN branch_to_build=None WHEN init called THEN config.branch_to_build is set"""
+
+        # noinspection PyTypeChecker
+        config = PipelineConfig(self.test_ssm_config, unique_id="foo", branch_to_build=None, common=None)
+        self.assertIsNotNone(config.branch_to_build)
